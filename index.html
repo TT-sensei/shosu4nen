@@ -780,7 +780,18 @@
               <a href="https://tt-sensei.github.io/jp-learning-taxonomy/site/v2/#topic=jp.elem.math.decimal-add-subtract" target="_blank" rel="noopener">小数のたし算・ひき算</a>
             </nav>
           </div>
-          <img class="home-group" src="https://tt-sensei.github.io/navi-character-/assets/web/groups/learning/group-learning-math-diagram.webp" alt="" aria-hidden="true" decoding="async" />
+          <img class="home-group" id="topScene" src="https://tt-sensei.github.io/navi-character-/assets/groups/learning/trio-learning-discussion-riku-saku-kai.png" alt="" aria-hidden="true" decoding="async" />
+          <script>
+            // トップ絵は3人の場面イラストからランダム表示（開くたびに変わる）
+            (function () {
+              var scenes = [
+                "https://tt-sensei.github.io/navi-character-/assets/groups/learning/trio-learning-discussion-riku-saku-kai.png",
+                "https://tt-sensei.github.io/navi-character-/assets/groups/learning/trio-learning-graph-kai-tsuki-nami.png"
+              ];
+              var img = document.getElementById("topScene");
+              if (img) img.src = scenes[Math.floor(Math.random() * scenes.length)];
+            })();
+          </script>
         </div>
 
         <h2 class="section-label">4年生の練習</h2>

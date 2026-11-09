@@ -1768,6 +1768,7 @@
       function completeProblem() {
         var p = currentProblem();
         session.busy = false;
+        document.getElementById("quiz-layout").classList.remove("point-mode");
         var flawless = !session.hadMistake;
 
         if (session.mode === "practice") {

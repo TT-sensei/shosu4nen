@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light" />
+    <link rel="icon" href="data:," />
+    <title>4年 小数の計算練習（試作）</title>
+    <style>
+      :root {
+        --bg: #eef5f9;
+        --card: #ffffff;
+        --ink: #22303c;
+        --ink-soft: #4d6373;
+        --line: #d7e4ec;
+        --primary: #1f7ac0;
+        --primary-dark: #16649e;
+        --primary-soft: #e3f1fa;
+        --amber: #f5a623;
+        --amber-soft: #fdf0d5;
+        --good: #1e9e57;
+        --good-soft: #e2f5e9;
+        --bad: #d9534f;
+        --bad-soft: #fbe9e8;
+        --riku: #2e9e5b;
+        --riku-soft: #e4f4ea;
+        --sora: #2b8fd6;
+        --sora-soft: #e3f1fb;
+        --tsuki: #dd8a12;
+        --tsuki-soft: #fdf0da;
+        --kai: #0f9488;
+        --kai-soft: #def3f0;
+        --radius: 18px;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", "YuGothic", "Noto Sans JP", sans-serif;
+        -webkit-text-size-adjust: 100%;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 16px 16px 40px;
+      }
+
+      /* ---------- header ---------- */
+      header.top {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin: 6px 0 18px;
+      }
+      header.top h1 {
+        font-size: clamp(24px, 5vw, 34px);
+        margin: 0;
+        letter-spacing: 0.02em;
+      }
+      .chip-grade {
+        background: var(--primary);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        padding: 7px 14px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .chip-proto {
+        background: var(--amber-soft);
+        color: #8a5c00;
+        border: 2px solid var(--amber);
+        font-size: 15px;
+        font-weight: 700;
+        padding: 5px 14px;
+        border-radius: 999px;
+        white-space: nowrap;
+      }
+      .lead {
+        color: var(--ink-soft);
+        font-size: 17px;
+        margin: 0 0 18px;
+        line-height: 1.6;
+      }
+
+      /* ---------- top: type cards ---------- */
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 560px) {
+        .grid { grid-template-columns: 1fr; }
+      }
+      .type-card {
+        background: var(--card);
+        border: 2px solid var(--line);
+        border-radius: var(--radius);
+        padding: 20px;
+        text-align: left;
+        cursor: pointer;
+        font-family: inherit;
+        color: var(--ink);
+        width: 100%;
+        transition: border-color 0.15s ease, transform 0.1s ease;
+      }
+      .type-card:active { transform: scale(0.99); }
+      .type-card .symbol {
+        font-size: 40px;
+        font-weight: 800;
+        line-height: 1;
+        margin-bottom: 8px;
+      }
+      .type-card .tname {
+        font-size: 24px;
+        font-weight: 800;
+        margin: 0 0 4px;
+      }
+      .type-card .tdesc {
+        font-size: 15px;
+        color: var(--ink-soft);
+        margin: 0 0 14px;
+        line-height: 1.5;
+      }
+      .type-card .start {
+        display: inline-block;
+        margin-top: 14px;
+        background: var(--primary);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 700;
+        padding: 10px 22px;
+        border-radius: 999px;
+      }
+      .pending {
+        display: inline-block;
+        margin-left: 8px;
+        background: var(--bad-soft);
+        color: var(--bad);
+        font-size: 14px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 999px;
+        vertical-align: middle;
+      }
+
+      /* ---------- navi chip ---------- */
+      .navi {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        border-radius: 999px;
+        padding: 7px 14px 7px 8px;
+        font-size: 15px;
+        line-height: 1.35;
+        max-width: 100%;
+      }
+      .navi .dot {
+        flex: 0 0 auto;
+        width: 34px; height: 34px;
+        border-radius: 50%;
+        color: #fff;
+        font-weight: 800;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .navi b { font-size: 16px; }
+      .navi .hint { color: var(--ink-soft); }
+      .navi.riku  { background: var(--riku-soft); }  .navi.riku .dot  { background: var(--riku); }
+      .navi.sora  { background: var(--sora-soft); }  .navi.sora .dot  { background: var(--sora); }
+      .navi.tsuki { background: var(--tsuki-soft); } .navi.tsuki .dot { background: var(--tsuki); }
+      .navi.kai   { background: var(--kai-soft); }   .navi.kai .dot   { background: var(--kai); }
+
+      /* ---------- menu buttons ---------- */
+      .menu-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 14px;
+      }
+      @media (max-width: 560px) {
+        .menu-row { grid-template-columns: 1fr; }
+      }
+      .menu-btn {
+        background: var(--card);
+        border: 2px solid var(--line);
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        font-family: inherit;
+        font-size: 19px;
+        font-weight: 800;
+        color: var(--ink);
+        cursor: pointer;
+        text-align: left;
+        min-height: 64px;
+      }
+      .menu-btn small {
+        display: block;
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--ink-soft);
+        margin-top: 4px;
+      }
+      .menu-btn .count {
+        background: var(--bad);
+        color: #fff;
+        font-size: 15px;
+        border-radius: 999px;
+        padding: 2px 10px;
+        margin-left: 6px;
+        vertical-align: middle;
+      }
+
+      /* ---------- practice ---------- */
+      .panel {
+        background: var(--card);
+        border: 2px solid var(--line);
+        border-radius: var(--radius);
+        padding: 22px;
+      }
+      .quiz-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .progress-label {
+        font-size: 17px;
+        font-weight: 700;
+        color: var(--ink-soft);
+        white-space: nowrap;
+      }
+      .progress-bar {
+        height: 12px;
+        background: var(--primary-soft);
+        border-radius: 999px;
+        overflow: hidden;
+        margin-bottom: 22px;
+      }
+      .progress-bar > div {
+        height: 100%;
+        background: var(--primary);
+        border-radius: 999px;
+        transition: width 0.25s ease;
+      }
+      .problem {
+        text-align: center;
+        font-size: clamp(38px, 9vw, 56px);
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        margin: 10px 0 20px;
+        font-variant-numeric: tabular-nums;
+      }
+      .answer-box {
+        margin: 0 auto 18px;
+        max-width: 420px;
+        min-height: 78px;
+        border: 3px solid var(--primary);
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        background: #fbfdff;
+        padding: 6px 12px;
+        word-break: break-all;
+      }
+      .answer-box.empty { color: #9db4c2; font-size: 22px; font-weight: 400; }
+      .answer-box.good { border-color: var(--good); background: var(--good-soft); }
+      .answer-box.bad  { border-color: var(--bad);  background: var(--bad-soft); }
+
+      .keypad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        max-width: 420px;
+        margin: 0 auto;
+      }
+      .keypad button {
+        min-height: 62px;
+        font-size: 27px;
+        font-weight: 700;
+        font-family: inherit;
+        background: #f4f9fc;
+        border: 2px solid var(--line);
+        border-radius: 14px;
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .keypad button:active { background: var(--primary-soft); }
+      .keypad button.util { font-size: 20px; background: #fdf6e3; }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 20px;
+      }
+      .btn {
+        font-family: inherit;
+        font-size: 19px;
+        font-weight: 800;
+        border-radius: 999px;
+        padding: 14px 30px;
+        min-height: 56px;
+        cursor: pointer;
+        border: 2px solid transparent;
+      }
+      .btn.primary { background: var(--primary); color: #fff; }
+      .btn.primary:active { background: var(--primary-dark); }
+      .btn.ghost {
+        background: var(--card);
+        border-color: var(--line);
+        color: var(--ink-soft);
+      }
+      .btn:disabled { opacity: 0.45; cursor: default; }
+
+      .feedback {
+        margin-top: 20px;
+        border-radius: 14px;
+        padding: 16px 18px;
+        font-size: 18px;
+        line-height: 1.65;
+        display: none;
+      }
+      .feedback.show { display: block; }
+      .feedback.good { background: var(--good-soft); }
+      .feedback.bad  { background: var(--bad-soft); }
+      .feedback .verdict { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+      .feedback.good .verdict { color: var(--good); }
+      .feedback.bad .verdict  { color: var(--bad); }
+
+      /* ---------- result / records ---------- */
+      .big-result {
+        text-align: center;
+        font-size: clamp(26px, 6vw, 36px);
+        font-weight: 800;
+        margin: 8px 0 6px;
+      }
+      .result-msg {
+        text-align: center;
+        font-size: 18px;
+        color: var(--ink-soft);
+        line-height: 1.7;
+        margin: 0 0 8px;
+      }
+      .stat-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-top: 6px;
+      }
+      @media (max-width: 560px) {
+        .stat-grid { grid-template-columns: 1fr; }
+      }
+      .stat-card {
+        border: 2px solid var(--line);
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        background: var(--card);
+      }
+      .stat-card h3 {
+        margin: 0 0 10px;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .stat-card .row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 17px;
+        padding: 5px 0;
+        border-top: 1px dashed var(--line);
+      }
+      .stat-card .row b { font-variant-numeric: tabular-nums; }
+      .colorbar {
+        width: 14px; height: 14px;
+        border-radius: 4px;
+        display: inline-block;
+      }
+      .back-row { margin-bottom: 14px; }
+      .hidden { display: none !important; }
+      footer.note {
+        margin-top: 26px;
+        text-align: center;
+        color: var(--ink-soft);
+        font-size: 14px;
+        line-height: 1.7;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+
+      <!-- ============ トップ画面 ============ -->
+      <section id="view-top">
+        <header class="top">
+          <h1>小数の 計算練習</h1>
+          <span class="chip-grade">4年生・算数</span>
+          <span class="chip-proto">試作</span>
+        </header>
+        <p class="lead">小数の 計算だけを 練習する ページです。やりたい 練習を えらんでね。1回は 10問です。</p>
+
+        <div class="grid" id="type-grid"></div>
+
+        <div class="menu-row">
+          <button class="menu-btn" id="btn-tokkun">
+            とっくん（まちがい直し）<span class="count hidden" id="tokkun-count">0</span>
+            <small>まちがえた 問題に もう一度 チャレンジ。正解すると きえるよ。</small>
+          </button>
+          <button class="menu-btn" id="btn-records">
+            れんしゅうの きろく
+            <small>種類ごとに、といた 問題数と 正解数が 見られます。</small>
+          </button>
+        </div>
+
+        <footer class="note">まちがえた 問題と きろくは、この タブレットの 中だけに 保存されます。</footer>
+      </section>
+
+      <!-- ============ 練習画面 ============ -->
+      <section id="view-quiz" class="hidden">
+        <div class="back-row">
+          <button class="btn ghost" id="btn-quit">← トップへ もどる</button>
+        </div>
+        <div class="panel">
+          <div class="quiz-head">
+            <span id="quiz-navi"></span>
+            <span class="progress-label" id="progress-label">1 / 10 もん</span>
+          </div>
+          <div class="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
+
+          <div class="problem" id="problem-text">1.5 ＋ 2.3 ＝ ？</div>
+          <div class="answer-box empty" id="answer-box">ここに こたえが 入るよ</div>
+
+          <div class="keypad" id="keypad">
+            <button type="button" data-key="1">1</button>
+            <button type="button" data-key="2">2</button>
+            <button type="button" data-key="3">3</button>
+            <button type="button" data-key="4">4</button>
+            <button type="button" data-key="5">5</button>
+            <button type="button" data-key="6">6</button>
+            <button type="button" data-key="7">7</button>
+            <button type="button" data-key="8">8</button>
+            <button type="button" data-key="9">9</button>
+            <button type="button" data-key="." aria-label="小数点">.</button>
+            <button type="button" data-key="0">0</button>
+            <button type="button" class="util" data-key="back" aria-label="1文字 けす">けす</button>
+          </div>
+
+          <div class="actions">
+            <button class="btn primary" id="btn-check">こたえる</button>
+            <button class="btn primary hidden" id="btn-next">つぎへ →</button>
+          </div>
+
+          <div class="feedback" id="feedback">
+            <div class="verdict" id="feedback-verdict"></div>
+            <div id="feedback-body"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 結果画面 ============ -->
+      <section id="view-result" class="hidden">
+        <div class="panel">
+          <p class="big-result" id="result-title">10もん中 8もん せいかい！</p>
+          <p class="result-msg" id="result-msg"></p>
+          <div class="actions">
+            <button class="btn primary" id="btn-again">もう一度 れんしゅう</button>
+            <button class="btn ghost" id="btn-result-tokkun">とっくんへ</button>
+            <button class="btn ghost" id="btn-result-top">トップへ</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 記録画面 ============ -->
+      <section id="view-records" class="hidden">
+        <div class="back-row">
+          <button class="btn ghost" id="btn-records-back">← トップへ もどる</button>
+        </div>
+        <div class="panel" style="background:transparent;border:none;padding:0;">
+          <h2 style="font-size:24px;margin:4px 0 14px;">れんしゅうの きろく</h2>
+          <div class="stat-grid" id="stat-grid"></div>
+        </div>
+      </section>
+
+    </div>
+
+    <script>
+      "use strict";
+
+      /* ================= 種類の定義 ================= */
+      var TYPES = {
+        add: {
+          label: "小数の たし算",
+          symbol: "＋",
+          desc: "小数第1位・第2位までの たし算",
+          navi: "りく", naviClass: "riku",
+          hint: "小数点を そろえて 計算しよう",
+          explain: "小数点の 位置を そろえて、0.1の位、0.01の位どうしを たします。位を そろえるのが ポイントです。"
+        },
+        sub: {
+          label: "小数の ひき算",
+          symbol: "－",
+          desc: "小数第1位・第2位までの ひき算",
+          navi: "そら", naviClass: "sora",
+          hint: "小さい位から 順に ひいていこう",
+          explain: "小数点を そろえて、0.01の位、0.1の位の 順に ひきます。ひけない ときは、上の位から かりてきます。"
+        },
+        mul: {
+          label: "小数 × 整数",
+          symbol: "×",
+          desc: "小数に 整数を かける かけ算",
+          navi: "つき", naviClass: "tsuki",
+          hint: "整数の かけ算と 同じように 計算しよう",
+          explain: "まず 小数点を ないものとして 整数の かけ算を します。それから、もとの 小数と 同じ 位置に 小数点を もどします。"
+        },
+        div: {
+          label: "小数 ÷ 整数",
+          symbol: "÷",
+          desc: "わり切れる 問題だけの わり算",
+          navi: "かい", naviClass: "kai",
+          hint: "商の 小数点は わられる数と そろえるよ",
+          explain: "商の 小数点は、わられる数の 小数点と 同じ 位置に 打ちます。0.1の位まで わり切れない ときは、0.01の位まで 計算します。"
+        }
+      };
+      var TYPE_KEYS = ["add", "sub", "mul", "div"];
+
+      /* ================= 保存（この端末の中だけ） ================= */
+      var LS_MISTAKES = "shosuRenshu.mistakes.v1";
+      var LS_STATS = "shosuRenshu.stats.v1";
+
+      function loadJSON(key, fallback) {
+        try {
+          var raw = localStorage.getItem(key);
+          if (!raw) return fallback;
+          var v = JSON.parse(raw);
+          return v == null ? fallback : v;
+        } catch (e) { return fallback; }
+      }
+      function saveJSON(key, value) {
+        try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+      }
+      function loadMistakes() {
+        var m = loadJSON(LS_MISTAKES, []);
+        return Array.isArray(m) ? m : [];
+      }
+      function loadStats() {
+        var s = loadJSON(LS_STATS, {});
+        TYPE_KEYS.forEach(function (k) {
+          if (!s[k] || typeof s[k].total !== "number") s[k] = { total: 0, correct: 0 };
+        });
+        return s;
+      }
+
+      /* ================= 数値ユーティリティ =================
+         小数は 100倍した整数（＝0.01単位）で計算し、
+         浮動小数点の誤差で判定がずれないようにする。 */
+      function randInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+      }
+      function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+      // 0.01単位の整数 → 表示用文字列（末尾の0は落とす）
+      function fmt(scaled) {
+        var neg = scaled < 0;
+        var v = Math.abs(scaled);
+        var intPart = Math.floor(v / 100);
+        var frac = v % 100;
+        var out;
+        if (frac === 0) out = String(intPart);
+        else if (frac % 10 === 0) out = intPart + "." + (frac / 10);
+        else out = intPart + "." + (frac < 10 ? "0" : "") + frac;
+        return (neg ? "-" : "") + out;
+      }
+
+      // 子どもが入力した文字列 → 0.001単位の整数（比較用）
+      function parseInput(str) {
+        if (!str || str === "." ) return null;
+        var parts = str.split(".");
+        if (parts.length > 2) return null;
+        var intPart = parts[0] === "" ? 0 : parseInt(parts[0], 10);
+        if (isNaN(intPart)) return null;
+        var fracStr = (parts[1] || "");
+        if (fracStr.length > 3) return null;
+        var frac = parseInt((fracStr + "000").slice(0, 3), 10);
+        return intPart * 1000 + (isNaN(frac) ? 0 : frac);
+      }
+      // answer は 0.01単位。0.001単位にそろえて比較する
+      function isCorrect(inputStr, answerScaled100) {
+        var v = parseInput(inputStr);
+        if (v === null) return false;
+        return v === answerScaled100 * 10;
+      }
+
+      /* ================= 問題生成 ================= */
+      // たし算・ひき算用の小数ペア（0.01単位の整数で返す）
+      function decimalPair() {
+        var style = pick([1, 1, 2, 2, 3]); // 1:第1位まで 2:第2位まで 3:まざった形
+        var a, b;
+        if (style === 1) {
+          a = randInt(1, 99) * 10;
+          b = randInt(1, 99) * 10;
+        } else if (style === 2) {
+          a = randInt(11, 999);
+          b = randInt(11, 999);
+          if (a % 10 === 0) a += randInt(1, 9);
+          if (b % 10 === 0) b += randInt(1, 9);
+        } else {
+          a = randInt(1, 99) * 10;
+          b = randInt(11, 999);
+          if (b % 10 === 0) b += randInt(1, 9);
+        }
+        return [a, b];
+      }
+
+      function genProblem(type) {
+        var a, b, ans, expr;
+        if (type === "add") {
+          var p = decimalPair();
+          a = p[0]; b = p[1]; ans = a + b;
+          expr = fmt(a) + " ＋ " + fmt(b);
+        } else if (type === "sub") {
+          var q = decimalPair();
+          a = Math.max(q[0], q[1]); b = Math.min(q[0], q[1]);
+          if (a === b) a += 10;
+          ans = a - b;
+          expr = fmt(a) + " － " + fmt(b);
+        } else if (type === "mul") {
+          var m;
+          if (Math.random() < 0.5) {
+            a = randInt(2, 99) * 10;      // 小数第1位まで
+          } else {
+            a = randInt(12, 499);          // 小数第2位まで
+            if (a % 10 === 0) a += randInt(1, 9);
+          }
+          m = randInt(2, 9);
+          ans = a * m;                     // 0.01単位 × 整数 ＝ 0.01単位
+          expr = fmt(a) + " × " + m;
+        } else { // div：わり切れる問題だけを作る
+          var d = randInt(2, 9);
+          var maxQ = Math.floor(9999 / d);
+          var quot = randInt(12, maxQ);    // 商（0.01単位）
+          a = quot * d;                    // わられる数（0.01単位）
+          ans = quot;
+          expr = fmt(a) + " ÷ " + d;
+        }
+        return {
+          type: type,
+          expr: expr,
+          answer: ans, // 0.01単位の整数
+          explain: TYPES[type].explain
+        };
+      }
+
+      /* ================= 画面管理 ================= */
+      var views = ["view-top", "view-quiz", "view-result", "view-records"];
+      function showView(id) {
+        views.forEach(function (v) {
+          document.getElementById(v).classList.toggle("hidden", v !== id);
+        });
+        window.scrollTo(0, 0);
+      }
+
+      function naviHTML(type) {
+        var t = TYPES[type];
+        return '<span class="navi ' + t.naviClass + '">' +
+          '<span class="dot">' + t.navi.charAt(0) + '</span>' +
+          '<span><b>' + t.navi + '</b> <span class="hint">' + t.hint + '</span></span></span>';
+      }
+
+      /* ---------- トップ画面 ---------- */
+      function renderTop() {
+        var mistakes = loadMistakes();
+        var grid = document.getElementById("type-grid");
+        grid.innerHTML = "";
+        TYPE_KEYS.forEach(function (key) {
+          var t = TYPES[key];
+          var pendingCount = mistakes.filter(function (m) { return m.type === key; }).length;
+          var card = document.createElement("button");
+          card.type = "button";
+          card.className = "type-card";
+          card.innerHTML =
+            '<div class="symbol">' + t.symbol + '</div>' +
+            '<p class="tname">' + t.label +
+              (pendingCount > 0 ? '<span class="pending">とっくん待ち ' + pendingCount + 'もん</span>' : '') +
+            '</p>' +
+            '<p class="tdesc">' + t.desc + '</p>' +
+            naviHTML(key) +
+            '<br><span class="start">れんしゅう スタート →</span>';
+          card.addEventListener("click", function () { startPractice(key); });
+          grid.appendChild(card);
+        });
+        var total = mistakes.length;
+        var badge = document.getElementById("tokkun-count");
+        badge.textContent = total;
+        badge.classList.toggle("hidden", total === 0);
+      }
+
+      /* ---------- 記録画面 ---------- */
+      function renderRecords() {
+        var stats = loadStats();
+        var mistakes = loadMistakes();
+        var grid = document.getElementById("stat-grid");
+        grid.innerHTML = "";
+        var colors = { add: "var(--riku)", sub: "var(--sora)", mul: "var(--tsuki)", div: "var(--kai)" };
+        TYPE_KEYS.forEach(function (key) {
+          var t = TYPES[key];
+          var s = stats[key];
+          var pendingCount = mistakes.filter(function (m) { return m.type === key; }).length;
+          var card = document.createElement("div");
+          card.className = "stat-card";
+          card.innerHTML =
+            '<h3><span class="colorbar" style="background:' + colors[key] + '"></span>' + t.label + '</h3>' +
+            '<div class="row"><span>といた 問題数</span><b>' + s.total + ' もん</b></div>' +
+            '<div class="row"><span>正解数</span><b>' + s.correct + ' もん</b></div>' +
+            '<div class="row"><span>とっくん待ち</span><b>' + pendingCount + ' もん</b></div>';
+          grid.appendChild(card);
+        });
+      }
+
+      /* ================= 練習の進行 ================= */
+      var session = null;
+      // session = { mode: "practice"|"tokkun", type, problems: [], index, correctCount, input, answered }
+
+      function buildPracticeProblems(type) {
+        var list = [];
+        var seen = {};
+        var guard = 0;
+        while (list.length < 10 && guard < 200) {
+          guard++;
+          var p = genProblem(type);
+          if (seen[p.expr]) continue;
+          seen[p.expr] = true;
+          list.push(p);
+        }
+        return list;
+      }
+
+      function startPractice(type) {
+        session = {
+          mode: "practice",
+          type: type,
+          problems: buildPracticeProblems(type),
+          index: 0,
+          correctCount: 0,
+          input: "",
+          answered: false
+        };
+        showView("view-quiz");
+        renderQuestion();
+      }
+
+      function startTokkun() {
+        var mistakes = loadMistakes();
+        if (mistakes.length === 0) {
+          showView("view-result");
+          document.getElementById("result-title").textContent = "とっくん待ちの 問題は ありません";
+          document.getElementById("result-msg").textContent = "まちがえた 問題は ぜんぶ 克服できています。この調子で れんしゅうを 続けよう。";
+          document.getElementById("btn-again").classList.add("hidden");
+          document.getElementById("btn-result-tokkun").classList.add("hidden");
+          return;
+        }
+        // 並びをシャッフル
+        var list = mistakes.slice();
+        for (var i = list.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+        }
+        session = {
+          mode: "tokkun",
+          type: null,
+          problems: list,
+          index: 0,
+          correctCount: 0,
+          input: "",
+          answered: false
+        };
+        showView("view-quiz");
+        renderQuestion();
+      }
+
+      function currentProblem() { return session.problems[session.index]; }
+
+      function renderQuestion() {
+        var p = currentProblem();
+        session.input = "";
+        session.answered = false;
+        document.getElementById("quiz-navi").innerHTML = naviHTML(p.type);
+        document.getElementById("progress-label").textContent =
+          (session.mode === "tokkun" ? "とっくん " : "") +
+          (session.index + 1) + " / " + session.problems.length + " もん";
+        document.getElementById("progress-fill").style.width =
+          (session.index / session.problems.length * 100) + "%";
+        document.getElementById("problem-text").textContent = p.expr + " ＝ ？";
+        var box = document.getElementById("answer-box");
+        box.textContent = "ここに こたえが 入るよ";
+        box.className = "answer-box empty";
+        document.getElementById("feedback").className = "feedback";
+        document.getElementById("btn-check").classList.remove("hidden");
+        document.getElementById("btn-next").classList.add("hidden");
+        document.getElementById("btn-check").disabled = false;
+      }
+
+      function renderInput() {
+        var box = document.getElementById("answer-box");
+        if (session.input === "") {
+          box.textContent = "ここに こたえが 入るよ";
+          box.className = "answer-box empty";
+        } else {
+          box.textContent = session.input;
+          box.className = "answer-box";
+        }
+      }
+
+      function pressKey(key) {
+        if (!session || session.answered) return;
+        if (key === "back") {
+          session.input = session.input.slice(0, -1);
+        } else if (key === ".") {
+          if (session.input.indexOf(".") === -1 && session.input.length < 9) {
+            session.input += session.input === "" ? "0." : ".";
+          }
+        } else {
+          if (session.input.length >= 9) return;
+          // 先頭の 0 の重なりを防ぐ（0.5 などは そのまま打てる）
+          if (session.input === "0") session.input = key;
+          else session.input += key;
+        }
+        renderInput();
+      }
+
+      function checkAnswer() {
+        if (!session || session.answered) return;
+        if (session.input === "") return;
+        var p = currentProblem();
+        var ok = isCorrect(session.input, p.answer);
+        session.answered = true;
+
+        var box = document.getElementById("answer-box");
+        box.className = "answer-box " + (ok ? "good" : "bad");
+
+        var fb = document.getElementById("feedback");
+        var verdict = document.getElementById("feedback-verdict");
+        var body = document.getElementById("feedback-body");
+        fb.className = "feedback show " + (ok ? "good" : "bad");
+        if (ok) {
+          verdict.textContent = "せいかい！";
+          body.textContent = TYPES[p.type].navi + "：その調子！ " + p.explain;
+        } else {
+          verdict.textContent = "おしい！ こたえは " + fmt(p.answer) + " だよ";
+          body.textContent = TYPES[p.type].navi + "：" + p.explain;
+        }
+
+        if (session.mode === "practice") {
+          var stats = loadStats();
+          stats[p.type].total += 1;
+          if (ok) stats[p.type].correct += 1;
+          saveJSON(LS_STATS, stats);
+          if (ok) session.correctCount += 1;
+          if (!ok) {
+            var mistakes = loadMistakes();
+            var exists = mistakes.some(function (m) { return m.type === p.type && m.expr === p.expr; });
+            if (!exists) {
+              mistakes.push({ type: p.type, expr: p.expr, answer: p.answer });
+              saveJSON(LS_MISTAKES, mistakes);
+            }
+          }
+        } else { // tokkun
+          if (ok) {
+            session.correctCount += 1;
+            var rest = loadMistakes().filter(function (m) {
+              return !(m.type === p.type && m.expr === p.expr);
+            });
+            saveJSON(LS_MISTAKES, rest);
+          }
+        }
+
+        document.getElementById("progress-fill").style.width =
+          ((session.index + 1) / session.problems.length * 100) + "%";
+        document.getElementById("btn-check").classList.add("hidden");
+        var nextBtn = document.getElementById("btn-next");
+        nextBtn.classList.remove("hidden");
+        nextBtn.textContent = (session.index + 1 >= session.problems.length) ? "けっかを 見る →" : "つぎへ →";
+      }
+
+      function nextQuestion() {
+        if (!session) return;
+        session.index += 1;
+        if (session.index >= session.problems.length) {
+          finishSession();
+        } else {
+          renderQuestion();
+        }
+      }
+
+      function finishSession() {
+        var mistakes = loadMistakes();
+        var title = document.getElementById("result-title");
+        var msg = document.getElementById("result-msg");
+        var againBtn = document.getElementById("btn-again");
+        var tokkunBtn = document.getElementById("btn-result-tokkun");
+        againBtn.classList.remove("hidden");
+        tokkunBtn.classList.toggle("hidden", mistakes.length === 0);
+
+        if (session.mode === "practice") {
+          var n = session.problems.length;
+          var c = session.correctCount;
+          title.textContent = n + "もん中 " + c + "もん せいかい！";
+          if (c === n) msg.textContent = "全問 正解！ すごいね。この調子で いろいろな 種類にも チャレンジしよう。";
+          else if (c >= n * 0.7) msg.textContent = "よく がんばりました。まちがえた 問題は「とっくん」で もう一度 やってみよう。";
+          else msg.textContent = "おつかれさま。まちがえた 問題は「とっくん」に 入っているよ。あわてず 1問ずつ 直していこう。";
+          againBtn.textContent = "もう一度 れんしゅう";
+        } else {
+          var left = mistakes.length;
+          title.textContent = session.correctCount + "もん 克服できた！";
+          msg.textContent = left === 0
+            ? "とっくん待ちの 問題が ぜんぶ なくなりました。全問 克服です！"
+            : "あと " + left + "もん のこっています。また あとで チャレンジしよう。";
+          againBtn.textContent = "もう一度 とっくん";
+        }
+        showView("view-result");
+        renderTop();
+      }
+
+      /* ================= イベント ================= */
+      document.getElementById("keypad").addEventListener("click", function (e) {
+        var btn = e.target.closest("button");
+        if (!btn) return;
+        pressKey(btn.getAttribute("data-key"));
+      });
+      document.getElementById("btn-check").addEventListener("click", checkAnswer);
+      document.getElementById("btn-next").addEventListener("click", nextQuestion);
+      document.getElementById("btn-quit").addEventListener("click", function () {
+        session = null;
+        renderTop();
+        showView("view-top");
+      });
+      document.getElementById("btn-tokkun").addEventListener("click", startTokkun);
+      document.getElementById("btn-records").addEventListener("click", function () {
+        renderRecords();
+        showView("view-records");
+      });
+      document.getElementById("btn-records-back").addEventListener("click", function () {
+        renderTop();
+        showView("view-top");
+      });
+      document.getElementById("btn-result-top").addEventListener("click", function () {
+        session = null;
+        renderTop();
+        showView("view-top");
+      });
+      document.getElementById("btn-result-tokkun").addEventListener("click", startTokkun);
+      document.getElementById("btn-again").addEventListener("click", function () {
+        if (!session) { renderTop(); showView("view-top"); return; }
+        if (session.mode === "practice") startPractice(session.type);
+        else startTokkun();
+      });
+
+      renderTop();
+    </script>
+  </body>
+</html>

@@ -257,6 +257,148 @@
         margin: 10px 0 20px;
         font-variant-numeric: tabular-nums;
       }
+
+      /* ---------- step UI ---------- */
+      .step-label {
+        text-align: center;
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--primary-dark);
+        margin: 2px 0 6px;
+      }
+      .step-prompt {
+        text-align: center;
+        font-size: clamp(19px, 4.4vw, 23px);
+        font-weight: 700;
+        line-height: 1.65;
+        margin: 8px auto 18px;
+        max-width: 640px;
+      }
+
+      /* ---------- hissan (筆算) ---------- */
+      .hissan {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin: 6px 0 4px;
+        font-variant-numeric: tabular-nums;
+        user-select: none;
+      }
+      .hrow { display: flex; align-items: flex-end; }
+      .hcell {
+        width: 48px;
+        height: 54px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 36px;
+        font-weight: 800;
+        position: relative;
+        border-radius: 8px;
+      }
+      .hcell.sign {
+        width: 34px;
+        font-size: 28px;
+        color: var(--ink-soft);
+      }
+      .hcell.carry-cell {
+        height: 22px;
+        font-size: 16px;
+        font-weight: 800;
+        color: var(--bad);
+      }
+      .hrow.answer-row .hcell {
+        border-top: 3px solid var(--ink);
+        border-radius: 0 0 8px 8px;
+      }
+      .hrow.answer-row .hcell.current {
+        background: var(--amber-soft);
+        box-shadow: inset 0 0 0 3px var(--amber);
+        border-radius: 8px;
+      }
+      .hrow.answer-row .hcell.done { color: var(--primary-dark); }
+      .hpoint {
+        width: 18px;
+        height: 54px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 36px;
+        font-weight: 800;
+      }
+      .hpoint.small { height: 22px; font-size: 16px; }
+      .hcell .mini-above {
+        position: absolute;
+        top: -13px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--primary-dark);
+        white-space: nowrap;
+      }
+      .hcell .mini-borrow {
+        position: absolute;
+        top: -13px;
+        left: 2px;
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--bad);
+        white-space: nowrap;
+      }
+      .hcell .struck { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--ink-soft); }
+
+      /* ---------- point picker (小数点決め) ---------- */
+      .point-picker {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 8px 0 6px;
+        flex-wrap: nowrap;
+      }
+      .digit-tile {
+        width: 48px;
+        height: 64px;
+        font-size: 36px;
+        font-weight: 800;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f4f9fc;
+        border: 2px solid var(--line);
+        border-radius: 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .gap-btn {
+        width: 44px;
+        height: 64px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        position: relative;
+        padding: 0;
+        flex: 0 0 auto;
+      }
+      .gap-btn::after {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 18px;
+        height: 18px;
+        transform: translate(-50%, -50%);
+        border: 3px dashed #9db4c2;
+        border-radius: 50%;
+      }
+      .gap-btn:active::after { border-color: var(--primary); }
+      .gap-btn.chosen::after {
+        border: 3px solid var(--good);
+        background: var(--good);
+        width: 14px;
+        height: 14px;
+      }
+      .gap-btn:disabled { cursor: default; }
+
       .answer-box {
         margin: 0 auto 18px;
         max-width: 420px;
@@ -335,9 +477,11 @@
       .feedback.show { display: block; }
       .feedback.good { background: var(--good-soft); }
       .feedback.bad  { background: var(--bad-soft); }
+      .feedback.info { background: var(--primary-soft); }
       .feedback .verdict { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
       .feedback.good .verdict { color: var(--good); }
       .feedback.bad .verdict  { color: var(--bad); }
+      .feedback.info .verdict { color: var(--primary-dark); }
 
       /* ---------- result / records ---------- */
       .big-result {
@@ -440,7 +584,15 @@
           </div>
           <div class="progress-bar"><div id="progress-fill" style="width:0%"></div></div>
 
-          <div class="problem" id="problem-text">1.5 ＋ 2.3 ＝ ？</div>
+          <div class="problem hidden" id="problem-text">1.5 ＋ 2.3 ＝ ？</div>
+
+          <div class="hissan hidden" id="hissan"></div>
+
+          <div class="step-label" id="step-label"></div>
+          <div class="step-prompt" id="step-prompt"></div>
+
+          <div class="point-picker hidden" id="point-picker"></div>
+
           <div class="answer-box empty" id="answer-box">ここに こたえが 入るよ</div>
 
           <div class="keypad" id="keypad">
@@ -584,23 +736,26 @@
         return (neg ? "-" : "") + out;
       }
 
-      // 子どもが入力した文字列 → 0.001単位の整数（比較用）
-      function parseInput(str) {
-        if (!str || str === "." ) return null;
-        var parts = str.split(".");
-        if (parts.length > 2) return null;
-        var intPart = parts[0] === "" ? 0 : parseInt(parts[0], 10);
-        if (isNaN(intPart)) return null;
-        var fracStr = (parts[1] || "");
-        if (fracStr.length > 3) return null;
-        var frac = parseInt((fracStr + "000").slice(0, 3), 10);
-        return intPart * 1000 + (isNaN(frac) ? 0 : frac);
+      // 小数点以下の桁数（0.01単位の整数に対して 0〜2）
+      function placesOf(scaled) {
+        var v = Math.abs(scaled);
+        if (v % 100 === 0) return 0;
+        if (v % 10 === 0) return 1;
+        return 2;
       }
-      // answer は 0.01単位。0.001単位にそろえて比較する
-      function isCorrect(inputStr, answerScaled100) {
-        var v = parseInput(inputStr);
-        if (v === null) return false;
-        return v === answerScaled100 * 10;
+      // 小数点を取った形の整数（例：2.40→24、2.05→205）
+      function intDigitsOf(scaled) {
+        var d = Math.abs(scaled);
+        while (d !== 0 && d % 10 === 0) d = d / 10;
+        return d;
+      }
+      // scaled（0.01単位）の k 位の数字。k=0:0.01の位、1:0.1の位、2:1の位、3:10の位
+      function digitAt(scaled, k) {
+        return Math.floor(Math.abs(scaled) / Math.pow(10, k)) % 10;
+      }
+      function placeName(k) {
+        var names = { 0: "0.01の位", 1: "0.1の位", 2: "1の位", 3: "10の位", 4: "100の位" };
+        return names[k] || "";
       }
 
       /* ================= 問題生成 ================= */
@@ -644,23 +799,129 @@
             a = randInt(12, 499);          // 小数第2位まで
             if (a % 10 === 0) a += randInt(1, 9);
           }
+          if (a % 100 === 0) a += 10;      // 整数になってしまう形は避ける
           m = randInt(2, 9);
+          b = m;
           ans = a * m;                     // 0.01単位 × 整数 ＝ 0.01単位
           expr = fmt(a) + " × " + m;
-        } else { // div：わり切れる問題だけを作る
+        } else { // div：わり切れる問題だけを作る（ステップ方式に合わせて組み立てる）
+          // ステップ1で「小数点を取った形 ÷ わる数」が整数になるよう、
+          // 商（整数として計算した形）→ わられる数の順に組み立てる。
           var d = randInt(2, 9);
-          var maxQ = Math.floor(9999 / d);
-          var quot = randInt(12, maxQ);    // 商（0.01単位）
-          a = quot * d;                    // わられる数（0.01単位）
-          ans = quot;
+          var pIdx = pick([1, 2]);         // わられる数の小数点以下の桁数
+          var intQuot = 13, aInt = 26, guard = 0;
+          do {
+            intQuot = randInt(12, 120);
+            aInt = intQuot * d;            // 小数点を取った形の わられる数
+            guard++;
+          } while ((aInt % 10 === 0 || aInt > 999) && guard < 500);
+          if (aInt % 10 === 0 || aInt > 999) { d = 2; intQuot = 13; aInt = 26; }
+          a = aInt * (pIdx === 2 ? 1 : 10); // 0.01単位に戻す
+          b = d;
+          ans = a / d;                      // 0.01単位の商（必ず整数になる）
           expr = fmt(a) + " ÷ " + d;
         }
         return {
           type: type,
           expr: expr,
           answer: ans, // 0.01単位の整数
-          explain: TYPES[type].explain
+          a: a,        // 0.01単位の整数（mul/div では 小数点のある数）
+          b: b         // 0.01単位の整数（mul/div では 整数の相手）
         };
+      }
+
+      // 記録（expr 文字列）から問題を復元する（旧形式の記録用）
+      function parseScaledStr(str) {
+        var parts = String(str).split(".");
+        var ip = parseInt(parts[0] || "0", 10);
+        if (isNaN(ip)) return 0;
+        var fr = parts[1] ? parseInt((parts[1] + "00").slice(0, 2), 10) : 0;
+        return ip * 100 + (isNaN(fr) ? 0 : fr);
+      }
+      function problemFromRecord(m) {
+        if (typeof m.a === "number" && typeof m.b === "number") {
+          return { type: m.type, expr: m.expr, answer: m.answer, a: m.a, b: m.b };
+        }
+        var tokens = String(m.expr).split(" ");
+        if (tokens.length < 3) return null;
+        var a = parseScaledStr(tokens[0]);
+        var b = (m.type === "mul" || m.type === "div") ? parseInt(tokens[2], 10) : parseScaledStr(tokens[2]);
+        if (isNaN(b)) return null;
+        return { type: m.type, expr: m.expr, answer: m.answer, a: a, b: b };
+      }
+
+      /* ================= ステップ列の生成 =================
+         表示するステップと、最終的な答えが食い違わないよう、
+         問題の生成と同時に「各ステップの正解値」を作る。 */
+      function buildSteps(p) {
+        if (p.type === "add" || p.type === "sub") return buildHissanSteps(p);
+        if (p.type === "mul" || p.type === "div") return buildPointSteps(p);
+        return null;
+      }
+
+      // たし算・ひき算：筆算ステップ
+      function buildHissanSteps(p) {
+        var a = p.a, b = p.b;
+        var frac = Math.max(placesOf(a), placesOf(b));
+        if (frac === 0) frac = 1;
+        var kMin = 2 - frac;
+        var K = 2;
+        [a, b, p.answer].forEach(function (v) {
+          for (var k = 2; k <= 5; k++) if (digitAt(v, k) > 0 && k > K) K = k;
+        });
+        var steps = [];
+        var carry = 0, borrow = 0;
+        var pointIndex = -1;
+        for (var col = kMin; col <= K; col++) {
+          var da = digitAt(a, col), db = digitAt(b, col);
+          if (p.type === "add") {
+            var sum = da + db + carry;
+            steps.push({
+              kind: "digit", col: col, da: da, db: db,
+              carryIn: carry, sum: sum,
+              expect: sum % 10, carryOut: sum >= 10 ? 1 : 0
+            });
+            carry = sum >= 10 ? 1 : 0;
+          } else {
+            var daEff = da - borrow;
+            var borrowed = daEff < db;
+            var topDigit = borrowed ? daEff + 10 : daEff;
+            steps.push({
+              kind: "digit", col: col, da: da, db: db,
+              borrowIn: borrow, daEff: daEff,
+              borrowed: borrowed, topDigit: topDigit,
+              expect: topDigit - db, borrowOut: borrowed ? 1 : 0
+            });
+            borrow = borrowed ? 1 : 0;
+          }
+          if (col === 1) {
+            pointIndex = steps.length;
+            steps.push({ kind: "hissan-point" });
+          }
+        }
+        p.meta = { K: K, kMin: kMin, pointIndex: pointIndex };
+        return steps;
+      }
+
+      // 小数×整数・小数÷整数：小数点の位置決めステップ
+      function buildPointSteps(p) {
+        var intA = intDigitsOf(p.a);
+        var places = placesOf(p.a);
+        var intRes;
+        if (p.type === "mul") {
+          intRes = intA * p.b;
+        } else {
+          if (intA % p.b !== 0) return null; // 旧形式などで割り切れない記録は扱えない
+          intRes = intA / p.b;
+        }
+        var digits = String(intRes);
+        var dispLen = Math.max(digits.length, places + 1);
+        while (digits.length < dispLen) digits = "0" + digits;
+        return [
+          { kind: "intcalc", x: intA, y: p.b, expect: intRes },
+          { kind: "count", expect: places },
+          { kind: "point", digits: digits, places: places, correctGap: dispLen - places, intRes: intRes }
+        ];
       }
 
       /* ================= 画面管理 ================= */
@@ -731,7 +992,8 @@
 
       /* ================= 練習の進行 ================= */
       var session = null;
-      // session = { mode: "practice"|"tokkun", type, problems: [], index, correctCount, input, answered }
+      // session = { mode, type, problems, index, correctCount,
+      //             stepIndex, stepInput, hadMistake, busy, timer, pointShown, chosenGap }
 
       function buildPracticeProblems(type) {
         var list = [];
@@ -747,23 +1009,41 @@
         return list;
       }
 
+      function clearTimer() {
+        if (session && session.timer) {
+          clearTimeout(session.timer);
+          session.timer = null;
+        }
+      }
+
       function startPractice(type) {
+        clearTimer();
         session = {
           mode: "practice",
           type: type,
           problems: buildPracticeProblems(type),
           index: 0,
           correctCount: 0,
-          input: "",
-          answered: false
+          stepIndex: 0, stepInput: "", hadMistake: false,
+          busy: false, timer: null, pointShown: false, chosenGap: -1
         };
         showView("view-quiz");
         renderQuestion();
       }
 
       function startTokkun() {
-        var mistakes = loadMistakes();
-        if (mistakes.length === 0) {
+        clearTimer();
+        var records = loadMistakes();
+        var problems = [];
+        var validRecords = [];
+        records.forEach(function (m) {
+          var p = problemFromRecord(m);
+          if (p && buildSteps(p)) { problems.push(p); validRecords.push(m); }
+        });
+        if (validRecords.length !== records.length) {
+          saveJSON(LS_MISTAKES, validRecords); // 扱えない古い記録は整理する
+        }
+        if (problems.length === 0) {
           showView("view-result");
           document.getElementById("result-title").textContent = "とっくん待ちの 問題は ありません";
           document.getElementById("result-msg").textContent = "まちがえた 問題は ぜんぶ 克服できています。この調子で れんしゅうを 続けよう。";
@@ -772,130 +1052,462 @@
           return;
         }
         // 並びをシャッフル
-        var list = mistakes.slice();
-        for (var i = list.length - 1; i > 0; i--) {
+        for (var i = problems.length - 1; i > 0; i--) {
           var j = Math.floor(Math.random() * (i + 1));
-          var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+          var tmp = problems[i]; problems[i] = problems[j]; problems[j] = tmp;
+          var tmpR = validRecords[i]; validRecords[i] = validRecords[j]; validRecords[j] = tmpR;
         }
         session = {
           mode: "tokkun",
           type: null,
-          problems: list,
+          problems: problems,
           index: 0,
           correctCount: 0,
-          input: "",
-          answered: false
+          stepIndex: 0, stepInput: "", hadMistake: false,
+          busy: false, timer: null, pointShown: false, chosenGap: -1
         };
         showView("view-quiz");
         renderQuestion();
       }
 
       function currentProblem() { return session.problems[session.index]; }
+      function currentStep() {
+        var p = currentProblem();
+        return p.steps ? p.steps[session.stepIndex] : null;
+      }
 
       function renderQuestion() {
         var p = currentProblem();
-        session.input = "";
-        session.answered = false;
+        if (!p.steps) p.steps = buildSteps(p);
+        session.stepIndex = 0;
+        session.stepInput = "";
+        session.hadMistake = false;
+        session.busy = false;
+        session.pointShown = false;
+        session.chosenGap = -1;
         document.getElementById("quiz-navi").innerHTML = naviHTML(p.type);
         document.getElementById("progress-label").textContent =
           (session.mode === "tokkun" ? "とっくん " : "") +
           (session.index + 1) + " / " + session.problems.length + " もん";
         document.getElementById("progress-fill").style.width =
           (session.index / session.problems.length * 100) + "%";
-        document.getElementById("problem-text").textContent = p.expr + " ＝ ？";
-        var box = document.getElementById("answer-box");
-        box.textContent = "ここに こたえが 入るよ";
-        box.className = "answer-box empty";
-        document.getElementById("feedback").className = "feedback";
-        document.getElementById("btn-check").classList.remove("hidden");
-        document.getElementById("btn-next").classList.add("hidden");
-        document.getElementById("btn-check").disabled = false;
+        renderStep();
       }
 
+      /* ---------- ステップ表示 ---------- */
+      function showFeedback(kind, verdict, body) {
+        var fb = document.getElementById("feedback");
+        fb.className = "feedback show " + kind;
+        document.getElementById("feedback-verdict").textContent = verdict;
+        document.getElementById("feedback-body").textContent = body;
+      }
+      function hideFeedback() {
+        document.getElementById("feedback").className = "feedback";
+      }
+
+      function renderStep() {
+        var p = currentProblem();
+        var st = currentStep();
+        var isHissan = (p.type === "add" || p.type === "sub");
+        document.getElementById("problem-text").classList.toggle("hidden", isHissan);
+        document.getElementById("hissan").classList.toggle("hidden", !isHissan);
+        if (!isHissan) {
+          document.getElementById("problem-text").textContent = p.expr + " ＝ ？";
+        } else {
+          renderHissan();
+        }
+
+        var label = document.getElementById("step-label");
+        var prompt = document.getElementById("step-prompt");
+        var picker = document.getElementById("point-picker");
+        var box = document.getElementById("answer-box");
+        var keypad = document.getElementById("keypad");
+        var checkBtn = document.getElementById("btn-check");
+        var nextBtn = document.getElementById("btn-next");
+        nextBtn.classList.add("hidden");
+        hideFeedback();
+
+        if (!st) { completeProblem(); return; }
+
+        if (st.kind === "hissan-point") {
+          // 小数点をまっすぐ下ろす（自動ステップ）
+          session.pointShown = true;
+          renderHissan();
+          label.textContent = "";
+          prompt.textContent = "小数点を 打とう。";
+          picker.classList.add("hidden");
+          box.classList.add("hidden");
+          keypad.classList.add("hidden");
+          checkBtn.classList.add("hidden");
+          showFeedback("info", "小数点", "小数点は、上の数と そろえて、まっすぐ 下に 下ろします。");
+          session.busy = true;
+          session.timer = setTimeout(function () {
+            session.busy = false;
+            session.stepIndex += 1;
+            if (session.stepIndex >= currentProblem().steps.length) completeProblem();
+            else renderStep();
+          }, 1500);
+          return;
+        }
+
+        if (st.kind === "point") {
+          label.textContent = "ステップ " + (session.stepIndex + 1) + " ／ " + p.steps.length;
+          prompt.textContent = (p.type === "mul")
+            ? "答えに 小数点を 打とう。かけられる数の 小数点以下の 数と 同じだけ、答えも 小数点以下に します。小数点以下の 数が " + st.places + " つに なる 位置を タップしてね。"
+            : "答えに 小数点を 打とう。わられる数の 小数点以下の 数と 同じだけ、答えも 小数点以下に します。小数点以下の 数が " + st.places + " つに なる 位置を タップしてね。";
+          renderPointPicker(st);
+          picker.classList.remove("hidden");
+          box.classList.add("hidden");
+          keypad.classList.add("hidden");
+          checkBtn.classList.add("hidden");
+          return;
+        }
+
+        // digit / intcalc / count：テンキー入力ステップ
+        picker.classList.add("hidden");
+        keypad.classList.remove("hidden");
+        checkBtn.classList.remove("hidden");
+        if (st.kind === "digit") {
+          box.classList.add("hidden");
+          label.textContent = "";
+          prompt.textContent = digitPrompt(st, p);
+          renderHissan();
+        } else {
+          box.classList.remove("hidden");
+          label.textContent = "ステップ " + (session.stepIndex + 1) + " ／ " + p.steps.length;
+          prompt.textContent = (st.kind === "intcalc") ? intcalcPrompt(st, p) : countPrompt(st, p);
+          renderInput();
+        }
+      }
+
+      function digitPrompt(st, p) {
+        var place = placeName(st.col);
+        if (p.type === "add") {
+          return place + "を 計算しよう。" + st.da + " ＋ " + st.db +
+            (st.carryIn ? " ＋ くり上がりの 1" : "") +
+            " の 答えで、" + place + "に 書く 数字を 入れよう。";
+        }
+        if (st.borrowed) {
+          var lead = st.daEff >= 0
+            ? st.daEff + " から " + st.db + " は ひけないので、"
+            : "そのままでは ひけないので、";
+          return place + "：" + lead + "となりの位から 1 かりて " + st.topDigit +
+            " に します。" + st.topDigit + " － " + st.db + " の 答えを 入れよう。";
+        }
+        var note = st.borrowIn
+          ? "（前の位で かりたので、" + st.da + " は " + st.daEff + " に なっているよ）"
+          : "";
+        return place + "を 計算しよう。" + st.daEff + " － " + st.db +
+          " の 答えを 入れよう。" + note;
+      }
+
+      function intcalcPrompt(st, p) {
+        if (p.type === "mul") {
+          return "まず、小数点を ないものとして 計算しよう。" + st.x + " × " + st.y + " ＝ ？";
+        }
+        return "まず、小数点を ないものとして 計算しよう。" + st.x + " ÷ " + st.y + " ＝ ？";
+      }
+      function countPrompt(st, p) {
+        if (p.type === "mul") {
+          return fmt(p.a) + " の 小数点以下の 数の かずを 数えよう。いくつ ある？";
+        }
+        return "わられる数 " + fmt(p.a) + " の 小数点以下の 数の かずを 数えよう。いくつ ある？";
+      }
+
+      /* ---------- 筆算の描画 ---------- */
+      function renderHissan() {
+        var p = currentProblem();
+        if (!p.meta) return;
+        var meta = p.meta;
+        var wrap = document.getElementById("hissan");
+        var cols = [];
+        for (var k = meta.K; k >= meta.kMin; k--) cols.push(k);
+
+        function stepOfCol(col) {
+          for (var i = 0; i < p.steps.length; i++) {
+            if (p.steps[i].kind === "digit" && p.steps[i].col === col) return i;
+          }
+          return -1;
+        }
+        function cellHTML(col, row) {
+          var stIdx = stepOfCol(col);
+          var st = stIdx >= 0 ? p.steps[stIdx] : null;
+          var done = stIdx >= 0 && stIdx < session.stepIndex;
+          var isCurrent = stIdx === session.stepIndex && currentStep() && currentStep().kind === "digit";
+          var html = "";
+          if (row === "carry") {
+            var showCarry = false;
+            if (p.type === "add" && st && st.carryIn === 1 && stIdx <= session.stepIndex && stIdx > 0) {
+              // 前の位のステップが終わっていたら くり上がりの1 を見せる
+              showCarry = (stIdx - 1) < session.stepIndex;
+            }
+            html = '<div class="hcell carry-cell">' + (showCarry ? "1" : "") + "</div>";
+          } else if (row === "a") {
+            var da = digitAt(p.a, col);
+            var content = String(da);
+            var mini = "";
+            if (p.type === "sub" && st) {
+              if (st.borrowIn === 1 && stIdx > 0 && (stIdx - 1) < session.stepIndex) {
+                mini = '<span class="mini-above">' + (da - 1) + "</span>";
+                content = '<span class="struck">' + da + "</span>";
+              }
+              if (st.borrowed && stIdx <= session.stepIndex) {
+                mini += '<span class="mini-borrow">' + st.topDigit + "</span>";
+              }
+            }
+            html = '<div class="hcell">' + mini + content + "</div>";
+          } else if (row === "b") {
+            var highestB = Math.max(2, highestCol(p.b));
+            var inRange = col >= meta.kMin && col <= highestB;
+            html = '<div class="hcell">' + (inRange ? digitAt(p.b, col) : "") + "</div>";
+          } else { // answer
+            var cls = "hcell";
+            var val = "";
+            if (done && st) { val = String(st.expect); cls += " done"; }
+            if (isCurrent) {
+              cls += " current";
+              val = session.stepInput;
+            }
+            html = '<div class="' + cls + '">' + val + "</div>";
+          }
+          return html;
+        }
+        function highestCol(v) {
+          for (var k = 5; k >= 2; k--) if (digitAt(v, k) > 0) return k;
+          return 2;
+        }
+        function pointHTML(rowKind) {
+          var show = rowKind === "answer" ? session.pointShown : rowKind !== "carry";
+          var cls = "hpoint" + (rowKind === "carry" ? " small" : "");
+          return '<div class="' + cls + '">' + (show ? "." : "") + "</div>";
+        }
+        function rowHTML(row) {
+          var out = "";
+          if (row === "a") out += '<div class="hcell sign"></div>';
+          else if (row === "b") out += '<div class="hcell sign">' + (p.type === "add" ? "＋" : "－") + "</div>";
+          else out += '<div class="hcell sign"></div>';
+          cols.forEach(function (col) {
+            out += cellHTML(col, row);
+            if (col === 2) out += pointHTML(row);
+          });
+          return '<div class="hrow' + (row === "answer" ? " answer-row" : "") + '">' + out + "</div>";
+        }
+        wrap.innerHTML =
+          rowHTML("carry") + rowHTML("a") + rowHTML("b") + rowHTML("answer");
+      }
+
+      /* ---------- 小数点決めの描画 ---------- */
+      function renderPointPicker(st) {
+        var picker = document.getElementById("point-picker");
+        picker.innerHTML = "";
+        var digits = st.digits.split("");
+        for (var g = 0; g <= digits.length; g++) {
+          (function (gap) {
+            var btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "gap-btn" + (session.chosenGap === gap ? " chosen" : "");
+            btn.setAttribute("aria-label", "小数点を ここに打つ");
+            btn.disabled = session.busy || session.chosenGap >= 0;
+            btn.addEventListener("click", function () { tapGap(gap); });
+            picker.appendChild(btn);
+          })(g);
+          if (g < digits.length) {
+            var tile = document.createElement("div");
+            tile.className = "digit-tile";
+            tile.textContent = digits[g];
+            picker.appendChild(tile);
+          }
+        }
+      }
+
+      function tapGap(gap) {
+        if (!session || session.busy) return;
+        var p = currentProblem();
+        var st = currentStep();
+        if (!st || st.kind !== "point") return;
+        if (gap === st.correctGap) {
+          session.chosenGap = gap;
+          renderPointPicker(st);
+          completeProblem();
+        } else {
+          markStepMistake();
+          showFeedback("bad", "おしい！",
+            "小数点以下の 数が " + st.places + " つに なる 位置だよ。右から " +
+            st.places + " つ 数えて、もう一度 タップしてみよう。");
+        }
+      }
+
+      /* ---------- 入力 ---------- */
       function renderInput() {
         var box = document.getElementById("answer-box");
-        if (session.input === "") {
+        if (session.stepInput === "") {
           box.textContent = "ここに こたえが 入るよ";
           box.className = "answer-box empty";
         } else {
-          box.textContent = session.input;
+          box.textContent = session.stepInput;
           box.className = "answer-box";
         }
       }
 
       function pressKey(key) {
-        if (!session || session.answered) return;
-        if (key === "back") {
-          session.input = session.input.slice(0, -1);
-        } else if (key === ".") {
-          if (session.input.indexOf(".") === -1 && session.input.length < 9) {
-            session.input += session.input === "" ? "0." : ".";
+        if (!session || session.busy) return;
+        var st = currentStep();
+        if (!st) return;
+        if (st.kind === "digit") {
+          if (key === "back") session.stepInput = "";
+          else if (key === ".") return;
+          else session.stepInput = key;
+          renderHissan();
+        } else if (st.kind === "count") {
+          if (key === "back") session.stepInput = "";
+          else if (key === ".") return;
+          else session.stepInput = key;
+          renderInput();
+        } else if (st.kind === "intcalc") {
+          if (key === "back") {
+            session.stepInput = session.stepInput.slice(0, -1);
+          } else if (key === ".") {
+            return;
+          } else {
+            if (session.stepInput.length >= 7) return;
+            if (session.stepInput === "0") session.stepInput = key;
+            else session.stepInput += key;
           }
-        } else {
-          if (session.input.length >= 9) return;
-          // 先頭の 0 の重なりを防ぐ（0.5 などは そのまま打てる）
-          if (session.input === "0") session.input = key;
-          else session.input += key;
+          renderInput();
         }
-        renderInput();
+      }
+
+      /* ---------- ステップの判定 ---------- */
+      function markStepMistake() {
+        if (session.hadMistake) return;
+        session.hadMistake = true;
+        if (session.mode === "practice") {
+          var p = currentProblem();
+          var mistakes = loadMistakes();
+          var exists = mistakes.some(function (m) { return m.type === p.type && m.expr === p.expr; });
+          if (!exists) {
+            mistakes.push({ type: p.type, expr: p.expr, answer: p.answer, a: p.a, b: p.b });
+            saveJSON(LS_MISTAKES, mistakes);
+          }
+        }
+      }
+
+      function stepCorrectFeedback(st, p) {
+        if (st.kind === "digit") {
+          if (p.type === "add") {
+            return st.carryOut
+              ? "せいかい！" + st.sum + " だから " + st.expect + " を 書いて、1 を 次の位に くり上げたよ。"
+              : "せいかい！";
+          }
+          return st.borrowed
+            ? "せいかい！かりて " + st.topDigit + " － " + st.db + " ＝ " + st.expect + " だね。"
+            : "せいかい！";
+        }
+        if (st.kind === "intcalc") {
+          return "せいかい！" + st.x + (p.type === "mul" ? " × " : " ÷ ") + st.y + " ＝ " + st.expect + " だね。";
+        }
+        if (st.kind === "count") {
+          return "せいかい！小数点以下の 数は " + st.expect + " つだね。";
+        }
+        return "せいかい！";
+      }
+
+      function stepWrongFeedback(st, p) {
+        if (st.kind === "digit") {
+          if (p.type === "add") {
+            return st.da + " ＋ " + st.db + (st.carryIn ? " ＋ 1" : "") + " ＝ " + st.sum + " だよ。" +
+              (st.sum >= 10
+                ? st.sum + " の 1の位の " + st.expect + " を 書いて、1 を 次の位に くり上げます。もう一度 入れてみよう。"
+                : "もう一度 入れてみよう。");
+          }
+          if (st.borrowed) {
+            return "かりて " + st.topDigit + " に すると、" + st.topDigit + " － " + st.db +
+              " ＝ " + st.expect + " だよ。もう一度 入れてみよう。";
+          }
+          return st.daEff + " － " + st.db + " ＝ " + st.expect + " だよ。もう一度 入れてみよう。";
+        }
+        if (st.kind === "intcalc") {
+          return "おしい。整数の 計算と 同じだよ。" + st.x + (p.type === "mul" ? " × " : " ÷ ") +
+            st.y + " を もう一度 計算してみよう。";
+        }
+        if (st.kind === "count") {
+          return "おしい。" + fmt(p.a) + " の 小数点の 右側にある 数字の かずを、もう一度 数えてみよう。";
+        }
+        return "おしい。もう一度 やってみよう。";
       }
 
       function checkAnswer() {
-        if (!session || session.answered) return;
-        if (session.input === "") return;
+        if (!session || session.busy) return;
         var p = currentProblem();
-        var ok = isCorrect(session.input, p.answer);
-        session.answered = true;
-
-        var box = document.getElementById("answer-box");
-        box.className = "answer-box " + (ok ? "good" : "bad");
-
-        var fb = document.getElementById("feedback");
-        var verdict = document.getElementById("feedback-verdict");
-        var body = document.getElementById("feedback-body");
-        fb.className = "feedback show " + (ok ? "good" : "bad");
-        if (ok) {
-          verdict.textContent = "せいかい！";
-          body.textContent = TYPES[p.type].navi + "：その調子！ " + p.explain;
-        } else {
-          verdict.textContent = "おしい！ こたえは " + fmt(p.answer) + " だよ";
-          body.textContent = TYPES[p.type].navi + "：" + p.explain;
+        var st = currentStep();
+        if (!st) return;
+        if (st.kind !== "digit" && st.kind !== "intcalc" && st.kind !== "count") return;
+        if (session.stepInput === "") return;
+        var val = parseInt(session.stepInput, 10);
+        var ok = (val === st.expect);
+        if (!ok) {
+          markStepMistake();
+          session.stepInput = "";
+          if (st.kind === "digit") renderHissan(); else renderInput();
+          var box = document.getElementById("answer-box");
+          if (st.kind !== "digit") box.className = "answer-box bad";
+          showFeedback("bad", "おしい！", stepWrongFeedback(st, p));
+          return;
         }
+        // 正解：ステップを進める
+        session.busy = true;
+        session.stepIndex += 1;
+        if (st.kind === "digit") { session.stepInput = ""; renderHissan(); }
+        var box2 = document.getElementById("answer-box");
+        if (st.kind !== "digit") box2.className = "answer-box good";
+        showFeedback("good", "せいかい！", stepCorrectFeedback(st, p));
+        session.timer = setTimeout(function () {
+          session.busy = false;
+          session.stepInput = "";
+          if (session.stepIndex >= currentProblem().steps.length) completeProblem();
+          else renderStep();
+        }, 950);
+      }
+
+      /* ---------- 問題の完了 ---------- */
+      function completeProblem() {
+        var p = currentProblem();
+        session.busy = false;
+        var flawless = !session.hadMistake;
 
         if (session.mode === "practice") {
           var stats = loadStats();
           stats[p.type].total += 1;
-          if (ok) stats[p.type].correct += 1;
+          if (flawless) stats[p.type].correct += 1;
           saveJSON(LS_STATS, stats);
-          if (ok) session.correctCount += 1;
-          if (!ok) {
-            var mistakes = loadMistakes();
-            var exists = mistakes.some(function (m) { return m.type === p.type && m.expr === p.expr; });
-            if (!exists) {
-              mistakes.push({ type: p.type, expr: p.expr, answer: p.answer });
-              saveJSON(LS_MISTAKES, mistakes);
-            }
-          }
         } else { // tokkun
-          if (ok) {
-            session.correctCount += 1;
+          if (flawless) {
             var rest = loadMistakes().filter(function (m) {
               return !(m.type === p.type && m.expr === p.expr);
             });
             saveJSON(LS_MISTAKES, rest);
           }
         }
+        if (flawless) session.correctCount += 1;
 
         document.getElementById("progress-fill").style.width =
           ((session.index + 1) / session.problems.length * 100) + "%";
         document.getElementById("btn-check").classList.add("hidden");
+        document.getElementById("step-prompt").textContent = "";
+        document.getElementById("step-label").textContent = "";
+        document.getElementById("point-picker").classList.add("hidden");
+        if (p.type === "add" || p.type === "sub") renderHissan();
+        showFeedback("good", "できた！",
+          p.expr + " ＝ " + fmt(p.answer) + "。" +
+          (flawless ? "ぜんぶ 一度で できたね。すごい！" : "まちがえた ところも 直しながら 最後まで できたね。"));
         var nextBtn = document.getElementById("btn-next");
         nextBtn.classList.remove("hidden");
-        nextBtn.textContent = (session.index + 1 >= session.problems.length) ? "けっかを 見る →" : "つぎへ →";
+        nextBtn.textContent = (session.index + 1 >= session.problems.length) ? "けっかを 見る →" : "つぎの もんだいへ →";
       }
 
       function nextQuestion() {
         if (!session) return;
+        clearTimer();
         session.index += 1;
         if (session.index >= session.problems.length) {
           finishSession();
@@ -942,6 +1554,7 @@
       document.getElementById("btn-check").addEventListener("click", checkAnswer);
       document.getElementById("btn-next").addEventListener("click", nextQuestion);
       document.getElementById("btn-quit").addEventListener("click", function () {
+        clearTimer();
         session = null;
         renderTop();
         showView("view-top");
@@ -956,6 +1569,7 @@
         showView("view-top");
       });
       document.getElementById("btn-result-top").addEventListener("click", function () {
+        clearTimer();
         session = null;
         renderTop();
         showView("view-top");

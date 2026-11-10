@@ -70,6 +70,11 @@
         border-radius: 999px;
         white-space: nowrap;
       }
+      .sound-toggle {
+        background: #fff; color: var(--ink); border: 2px solid var(--line);
+        font-size: 15px; font-weight: 700; padding: 5px 14px; border-radius: 999px;
+        min-height: 44px; cursor: pointer;
+      }
       .chip-proto {
         background: var(--amber-soft);
         color: #8a5c00;
@@ -770,6 +775,7 @@
         <header class="top">
           <h1>小数の たし算・ひき算</h1>
           <span class="chip-grade">4年生・算数</span>
+          <button class="sound-toggle" id="btn-sound" aria-pressed="true">🔊 音 ON</button>
         </header>
 
         <div class="home-lead">
@@ -972,6 +978,45 @@
       }
       function saveJSON(key, value) {
         try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+      }
+
+      /* ---------- 設定（音の ON/OFF を この端末に 保存） ---------- */
+      var LS_SETTINGS = "shosuRenshu.settings.v1";
+      function loadSettings() {
+        var s = loadJSON(LS_SETTINGS, null);
+        return { sound: !s || s.sound !== false };
+      }
+      var settings = loadSettings();
+      function saveSettings() { saveJSON(LS_SETTINGS, settings); }
+      function renderSoundBtn() {
+        var b = document.getElementById("btn-sound");
+        if (!b) return;
+        b.textContent = settings.sound ? "🔊 音 ON" : "🔇 音 OFF";
+        b.setAttribute("aria-pressed", settings.sound ? "true" : "false");
+      }
+
+      /* ---------- 音（sounds-recipe- のレシピ。読み込めなくても学習は続ける） ---------- */
+      var soundList = [];
+      try {
+        import("https://tt-sensei.github.io/sounds-recipe-/sounds.js")
+          .then(function (m) { soundList = Array.isArray(m.soundList) ? m.soundList : []; })
+          .catch(function () { soundList = []; });
+      } catch (e) { soundList = []; }
+      var audioCtx = null;
+      function playSound(id) {
+        if (!settings.sound || !soundList.length) return;
+        var recipe = null;
+        for (var i = 0; i < soundList.length; i++) {
+          if (soundList[i].id === id) { recipe = soundList[i]; break; }
+        }
+        if (!recipe) return;
+        try {
+          var AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return;
+          if (!audioCtx) audioCtx = new AC();
+          if (audioCtx.state === "suspended") audioCtx.resume();
+          recipe.play(audioCtx, 0.6);
+        } catch (e) { /* 効果音の失敗で操作を止めない */ }
       }
       function loadMistakes() {
         var m = loadJSON(LS_MISTAKES, []);
@@ -1324,6 +1369,7 @@
         };
         showView("view-quiz");
         renderQuestion();
+        playSound("start");
       }
 
       function startTokkun() {
@@ -1363,6 +1409,7 @@
         };
         showView("view-quiz");
         renderQuestion();
+        playSound("start");
       }
 
       function currentProblem() { return session.problems[session.index]; }
@@ -1633,10 +1680,12 @@
         if (!st || st.kind !== "point") return;
         if (gap === st.correctGap) {
           session.chosenGap = gap;
+          playSound("correct");
           renderPointPicker(st);
           completeProblem();
         } else {
           markStepMistake();
+          playSound("softFail");
           showFeedback("bad", "おしい！",
             "小数点以下の 数が " + st.places + " つに なる 位置だよ。右から " +
             st.places + " つ 数えて、もう一度 タップしてみよう。");
@@ -1753,6 +1802,7 @@
         var ok = (val === st.expect);
         if (!ok) {
           markStepMistake();
+          playSound("softFail");
           session.stepInput = "";
           if (st.kind === "digit") renderHissan(); else renderInput();
           var box = document.getElementById("answer-box");
@@ -1761,6 +1811,7 @@
           return;
         }
         // 正解：ステップを進める
+        playSound("correct");
         session.busy = true;
         session.stepIndex += 1;
         if (st.kind === "digit") { session.stepInput = ""; renderHissan(); }
@@ -1795,7 +1846,7 @@
             saveJSON(LS_MISTAKES, rest);
           }
         }
-        if (flawless) session.correctCount += 1;
+        if (flawless) { session.correctCount += 1; playSound("clear"); }
 
         document.getElementById("progress-fill").style.width =
           ((session.index + 1) / session.problems.length * 100) + "%";
@@ -1848,6 +1899,9 @@
             : "あと " + left + "もん のこっています。また あとで チャレンジしよう。";
           againBtn.textContent = "もう一度 とっくん";
         }
+        if (session.problems.length > 0) {
+          playSound(session.correctCount === session.problems.length ? "allclear" : "practice");
+        }
         showView("view-result");
         renderTop();
       }
@@ -1888,6 +1942,14 @@
         else startTokkun();
       });
 
+      document.getElementById("btn-sound").addEventListener("click", function () {
+        settings.sound = !settings.sound;
+        saveSettings();
+        renderSoundBtn();
+        if (settings.sound) playSound("decide");
+      });
+
+      renderSoundBtn();
       renderTop();
     </script>
   </body>

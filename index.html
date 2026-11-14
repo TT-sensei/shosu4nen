@@ -416,6 +416,24 @@
       }
 
       /* ---------- point picker (小数点決め) ---------- */
+      .estimate-choices {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 10px auto 6px;
+        max-width: 420px;
+      }
+      .estimate-btn {
+        font-size: 21px;
+        font-weight: 800;
+        padding: 11px 15px;
+        border-radius: 14px;
+        border: 2px solid #bcd8ef;
+        background: #ffffff;
+        color: #14509e;
+        cursor: pointer;
+      }
+      .estimate-btn:hover { background: #eef6fd; }
       .point-picker {
         display: flex;
         justify-content: center;
@@ -925,6 +943,7 @@
               <div class="step-label" id="step-label"></div>
               <div class="step-prompt" id="step-prompt"></div>
               <div class="point-picker hidden" id="point-picker"></div>
+              <div class="estimate-choices hidden" id="estimate-choices"></div>
             </div>
 
             <div class="quiz-controls">
@@ -1141,8 +1160,8 @@
 
       /* ================= 問題生成 ================= */
       // たし算・ひき算用の小数ペア（0.01単位の整数で返す）
-      function decimalPair() {
-        var style = pick([1, 1, 2, 2, 3, 4, 4, 5, 6]);
+      function decimalPair(forcedStyle) {
+        var style = forcedStyle || pick([1, 1, 2, 2, 3, 4, 4, 5, 6]);
         var a, b;
         if (style === 1) {
           a = randInt(1, 99) * 10;
@@ -1173,21 +1192,22 @@
         return [a, b];
       }
 
-      function genProblem(type) {
+      function genProblem(type, opts) {
         var a, b, ans, expr;
         if (type === "add") {
-          var p = decimalPair();
+          var p = decimalPair(opts && opts.style);
           a = p[0]; b = p[1]; ans = a + b;
           expr = fmt(a) + " ＋ " + fmt(b);
         } else if (type === "sub") {
-          var q = decimalPair();
+          var q = decimalPair(opts && opts.style);
           a = Math.max(q[0], q[1]); b = Math.min(q[0], q[1]);
           if (a === b) a += 10;
           ans = a - b;
           expr = fmt(a) + " － " + fmt(b);
         } else if (type === "mul") {
           var m;
-          if (Math.random() < 0.5) {
+          var useFirst = (opts && typeof opts.form === "number") ? (opts.form === 0) : (Math.random() < 0.5);
+          if (useFirst) {
             a = randInt(2, 99) * 10;      // 小数第1位まで
           } else {
             a = randInt(12, 499);          // 小数第2位まで
@@ -1202,7 +1222,7 @@
           // ステップ1で「小数点を取った形 ÷ わる数」が整数になるよう、
           // 商（整数として計算した形）→ わられる数の順に組み立てる。
           var d = randInt(2, 9);
-          var pIdx = pick([1, 2]);         // わられる数の小数点以下の桁数
+          var pIdx = (opts && opts.pIdx) ? opts.pIdx : pick([1, 2]); // わられる数の小数点以下の桁数
           var intQuot = 13, aInt = 26, guard = 0;
           do {
             intQuot = randInt(12, 120);
@@ -1244,6 +1264,29 @@
         return { type: m.type, expr: m.expr, answer: m.answer, a: a, b: b, skillKinds: m.skillKinds || [] };
       }
 
+      // 答えの見当（見積もり）：だいたいの大きさを概数でつかむ
+      function estimateOf(ans) {
+        var unit = Math.abs(ans) >= 150 ? 100 : 10;
+        var v = Math.round(ans / unit) * unit;
+        if (v === 0) v = unit;
+        return v;
+      }
+      function estimateStep(p) {
+        var est = estimateOf(p.answer);
+        var choices = [est, est * 10, est / 10];
+        for (var i = choices.length - 1; i > 0; i--) {
+          var j = Math.floor(Math.random() * (i + 1));
+          var t = choices[i]; choices[i] = choices[j]; choices[j] = t;
+        }
+        return { kind: "estimate", expect: est, choices: choices };
+      }
+      function estimateHint(p) {
+        if (p.type === "add") return fmt(p.a) + " と " + fmt(p.b) + " を 合わせた 大きさを 考えてみよう。";
+        if (p.type === "sub") return fmt(p.a) + " から " + fmt(p.b) + " を ひいた 大きさを 考えてみよう。";
+        if (p.type === "mul") return fmt(p.a) + " の " + p.b + " つ分の 大きさを 考えてみよう。";
+        return fmt(p.a) + " を " + p.b + " つに 分けた 大きさを 考えてみよう。";
+      }
+
       /* ================= ステップ列の生成 =================
          表示するステップと、最終的な答えが食い違わないよう、
          問題の生成と同時に「各ステップの正解値」を作る。 */
@@ -1263,7 +1306,7 @@
         [a, b, p.answer].forEach(function (v) {
           for (var k = 2; k <= 5; k++) if (digitAt(v, k) > 0 && k > K) K = k;
         });
-        var steps = [{ kind: "align" }];
+        var steps = [estimateStep(p), { kind: "align" }];
         var carry = 0, borrow = 0;
         var pointIndex = -1;
         for (var col = kMin; col <= K; col++) {
@@ -1314,6 +1357,7 @@
         var dispLen = Math.max(digits.length, places + 1);
         while (digits.length < dispLen) digits = "0" + digits;
         return [
+          estimateStep(p),
           { kind: "intcalc", x: intA, y: p.b, expect: intRes },
           { kind: "count", expect: places },
           { kind: "point", digits: digits, places: places, correctGap: dispLen - places, intRes: intRes }
@@ -1340,8 +1384,11 @@
         return id;
       }
 
+      var NAVI_NAME_TO_ID = { "りく": "riku", "そら": "sora", "かい": "kai", "さく": "saku", "つき": "tsuki", "なみ": "nami" };
+      var activeNaviId = "";
+
       function naviImageHTML(pose) {
-        var id = pickNaviId();
+        var id = activeNaviId || pickNaviId();
         return '<img class="navi-avatar-img" src="' + NAVI_WEB + '/' + id +
           '/fullbody/' + pose + '.webp" alt="" aria-hidden="true" decoding="async" onerror="this.parentElement.remove()">';
       }
@@ -1420,12 +1467,31 @@
         var list = [];
         var seen = {};
         var guard = 0;
-        while (list.length < 10 && guard < 200) {
+        // 学習パターンを保証する：たし算・ひき算は6つの型（小数第1位どうし・
+        // 小数第2位どうし・混在・整数と小数・0をまたぐくり下がり・空位に0）を
+        // 必ず1問ずつ入れ、残りをランダムで埋める。かけ算は小数第1位・第2位、
+        // わり算は わられる数のけた数を交互に出す
+        var plans = [];
+        if (type === "add" || type === "sub") {
+          plans = [1, 2, 3, 4, 5, 6];
+          for (var i = plans.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var t = plans[i]; plans[i] = plans[j]; plans[j] = t;
+          }
+          while (plans.length < 10) plans.push(1 + Math.floor(Math.random() * 6));
+        }
+        var planIndex = 0;
+        while (list.length < 10 && guard < 300) {
           guard++;
-          var p = genProblem(type);
+          var opts = null;
+          if (type === "add" || type === "sub") opts = { style: plans[planIndex % plans.length] };
+          else if (type === "mul") opts = { form: planIndex % 2 };
+          else if (type === "div") opts = { pIdx: (planIndex % 2) + 1 };
+          var p = genProblem(type, opts);
           if (seen[p.expr]) continue;
           seen[p.expr] = true;
           list.push(p);
+          planIndex++;
         }
         return list;
       }
@@ -1511,6 +1577,7 @@
         session.pointShown = false;
         session.chosenGap = -1;
         session.alignOffset = pick([-1, 1]);
+        activeNaviId = NAVI_NAME_TO_ID[TYPES[p.type].navi] || "";
         var skillNames = { align: "小数点をそろえる", digit: "位ごとの計算", independent: "式だけで答える", intcalc: "整数の計算", count: "小数のけた数", point: "小数点の位置" };
         var skillNote = session.mode === "tokkun" && Array.isArray(p.skillKinds) && p.skillKinds.length
           ? "前回つまずいたところ：" + p.skillKinds.map(function (key) { return skillNames[key] || key; }).join("・") + "。ここを意識して取り組もう。"
@@ -1547,7 +1614,7 @@
         var p = currentProblem();
         var st = currentStep();
         session.stepAttempts = 0;
-        var isHissan = (p.type === "add" || p.type === "sub") && (!st || st.kind !== "independent");
+        var isHissan = (p.type === "add" || p.type === "sub") && (!st || (st.kind !== "independent" && st.kind !== "estimate"));
         document.getElementById("quiz-layout").classList.toggle(
           "point-mode", !!st && (st.kind === "point" || st.kind === "hissan-point")
         );
@@ -1569,12 +1636,24 @@
         var nextBtn = document.getElementById("btn-next");
         nextBtn.classList.add("hidden");
         alignControls.classList.add("hidden");
+        document.getElementById("estimate-choices").classList.add("hidden");
         hideFeedback();
 
         if (!st) { completeProblem(); return; }
 
+        if (st.kind === "estimate") {
+          label.textContent = "ステップ " + (session.stepIndex + 1) + " ／ " + p.steps.length;
+          prompt.textContent = "計算する前に、答えの見当をつけよう。答えは だいたい いくつくらいに なりそう？";
+          box.classList.add("hidden");
+          keypad.classList.add("hidden");
+          picker.classList.add("hidden");
+          checkBtn.classList.add("hidden");
+          renderEstimateChoices(st);
+          return;
+        }
+
         if (st.kind === "align") {
-          label.textContent = "ステップ 1 ／ " + p.steps.length;
+          label.textContent = "ステップ " + (session.stepIndex + 1) + " ／ " + p.steps.length;
           prompt.textContent = "下の数を 左右に 動かして、小数点を たてに そろえよう。";
           alignControls.classList.remove("hidden");
           document.getElementById("align-left").disabled = session.alignOffset <= -2;
@@ -1773,7 +1852,7 @@
         return '<div class="hrow' + (row === "answer" ? " answer-row" : "") + (moving ? " align-moving" : "") + '"' + shift + '>' + out + "</div>";
         }
         wrap.innerHTML =
-          ((currentStep() && currentStep().kind === "align") ? guideHTML() : "") +
+          ((currentStep() && (currentStep().kind === "align" || currentStep().kind === "digit" || currentStep().kind === "hissan-point")) ? guideHTML() : "") +
           rowHTML("carry") + rowHTML("a") + rowHTML("b") + rowHTML("answer");
       }
 
@@ -1852,6 +1931,44 @@
           showFeedback("bad", "おしい！",
             "小数点以下の 数が " + st.places + " つに なる 位置だよ。右から " +
             st.places + " つ 数えて、もう一度 タップしてみよう。");
+        }
+      }
+
+      function renderEstimateChoices(st) {
+        var wrap = document.getElementById("estimate-choices");
+        wrap.innerHTML = "";
+        wrap.classList.remove("hidden");
+        st.choices.forEach(function (v) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "estimate-btn";
+          btn.textContent = fmt(v) + " くらい";
+          btn.disabled = session.busy;
+          btn.addEventListener("click", function () { tapEstimate(v); });
+          wrap.appendChild(btn);
+        });
+      }
+
+      function tapEstimate(v) {
+        if (!session || session.busy) return;
+        var p = currentProblem();
+        var st = currentStep();
+        if (!st || st.kind !== "estimate") return;
+        if (v === st.expect) {
+          playSound("correct");
+          session.busy = true;
+          document.getElementById("estimate-choices").classList.add("hidden");
+          showFeedback("good", "いい見当！", "答えは " + fmt(st.expect) + " くらいに なりそうだね。その見当を たしかめながら 計算しよう。");
+          session.stepIndex += 1;
+          session.timer = setTimeout(function () {
+            session.busy = false;
+            if (session.stepIndex >= currentProblem().steps.length) completeProblem();
+            else renderStep();
+          }, 1100);
+        } else {
+          playSound("softFail");
+          showFeedback("bad", "見当を たしかめよう",
+            (v > st.expect ? "それは 大きすぎるかも。" : "それは 小さすぎるかも。") + estimateHint(p));
         }
       }
 

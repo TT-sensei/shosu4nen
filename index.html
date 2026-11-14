@@ -1904,7 +1904,6 @@
 
       /* ---------- ステップの判定 ---------- */
       function markStepMistake(skill) {
-        if (session.hadMistake) return;
         session.hadMistake = true;
         if (session.mode === "practice") {
           var p = currentProblem();
@@ -2085,9 +2084,9 @@
         if (session.mode === "practice") {
           var n = session.problems.length;
           var c = session.correctCount;
-          title.textContent = n + "もん中 " + c + "もん せいかい！";
-          if (c === n) msg.textContent = "全問 正解！ すごいね。この調子で いろいろな 種類にも チャレンジしよう。";
-          else if (c >= n * 0.7) msg.textContent = "よく がんばりました。まちがえた 問題は「とっくん」で もう一度 やってみよう。";
+          title.textContent = "ノーミス " + c + " ／ " + n + " もん";
+          if (c === n) msg.textContent = "全問ノーミス！ すごいね。この調子で いろいろな 種類にも チャレンジしよう。";
+          else if (c >= n * 0.7) msg.textContent = "よく がんばりました。まちがいを直して最後までできた問題も、力になっています。記録した問題は「とっくん」で確かめよう。";
           else msg.textContent = "おつかれさま。まちがえた 問題は「とっくん」に 入っているよ。あわてず 1問ずつ 直していこう。";
           againBtn.textContent = "もう一度 れんしゅう";
         } else {

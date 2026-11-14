@@ -355,6 +355,50 @@
       }
       .hcell .struck { text-decoration: line-through; text-decoration-thickness: 2px; color: var(--ink-soft); }
 
+      /* ---------- decimal place alignment ---------- */
+      :root { --hcell-width: 48px; }
+      .align-controls {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        margin: 14px auto 4px;
+        max-width: 520px;
+      }
+      .align-controls .align-instruction {
+        flex: 1 0 100%;
+        text-align: center;
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--primary-dark);
+      }
+      .align-controls button {
+        min-height: 54px;
+        padding: 10px 20px;
+        border: 2px solid var(--line);
+        border-radius: 14px;
+        background: #f4f9fc;
+        color: var(--ink);
+        font: inherit;
+        font-size: 18px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .align-controls button.confirm {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: #fff;
+        min-width: 180px;
+      }
+      .align-controls button:disabled { opacity: .4; cursor: default; }
+      .hrow.align-moving { transition: transform .16s ease; }
+      @media (max-width: 480px) {
+        :root { --hcell-width: 40px; }
+        .align-controls { gap: 7px; }
+        .align-controls button { min-height: 48px; padding: 8px 13px; font-size: 16px; }
+      }
+
       /* ---------- point picker (小数点決め) ---------- */
       .point-picker {
         display: flex;
@@ -856,6 +900,12 @@
             <div class="quiz-workspace">
               <div class="problem hidden" id="problem-text">1.5 ＋ 2.3 ＝ ？</div>
               <div class="hissan hidden" id="hissan"></div>
+              <div class="align-controls hidden" id="align-controls">
+                <div class="align-instruction">下の数を動かして、小数点を まっすぐに そろえよう。</div>
+                <button type="button" id="align-left" aria-label="下の数を左へ動かす">← 左へ</button>
+                <button type="button" id="align-right" aria-label="下の数を右へ動かす">右へ →</button>
+                <button type="button" class="confirm" id="align-confirm">これで決定！</button>
+              </div>
               <div class="step-label" id="step-label"></div>
               <div class="step-prompt" id="step-prompt"></div>
               <div class="point-picker hidden" id="point-picker"></div>
@@ -1184,7 +1234,7 @@
         [a, b, p.answer].forEach(function (v) {
           for (var k = 2; k <= 5; k++) if (digitAt(v, k) > 0 && k > K) K = k;
         });
-        var steps = [];
+        var steps = [{ kind: "align" }];
         var carry = 0, borrow = 0;
         var pointIndex = -1;
         for (var col = kMin; col <= K; col++) {
@@ -1427,6 +1477,7 @@
         session.busy = false;
         session.pointShown = false;
         session.chosenGap = -1;
+        session.alignOffset = pick([-1, 1]);
         document.getElementById("quiz-navi").innerHTML = naviHTML("hint", TYPES[p.type].hint);
         document.getElementById("progress-label").textContent =
           (session.mode === "tokkun" ? "とっくん " : "") +
@@ -1473,14 +1524,30 @@
         var label = document.getElementById("step-label");
         var prompt = document.getElementById("step-prompt");
         var picker = document.getElementById("point-picker");
+        var alignControls = document.getElementById("align-controls");
         var box = document.getElementById("answer-box");
         var keypad = document.getElementById("keypad");
         var checkBtn = document.getElementById("btn-check");
         var nextBtn = document.getElementById("btn-next");
         nextBtn.classList.add("hidden");
+        alignControls.classList.add("hidden");
         hideFeedback();
 
         if (!st) { completeProblem(); return; }
+
+        if (st.kind === "align") {
+          label.textContent = "ステップ 1 ／ " + p.steps.length;
+          prompt.textContent = "下の数を 左右に 動かして、小数点を たてに そろえよう。";
+          alignControls.classList.remove("hidden");
+          document.getElementById("align-left").disabled = session.alignOffset <= -2;
+          document.getElementById("align-right").disabled = session.alignOffset >= 2;
+          box.classList.add("hidden");
+          keypad.classList.add("hidden");
+          picker.classList.add("hidden");
+          checkBtn.classList.add("hidden");
+          renderHissan();
+          return;
+        }
 
         if (st.kind === "hissan-point") {
           // 小数点をまっすぐ下ろす（自動ステップ）
@@ -1643,10 +1710,41 @@
             out += cellHTML(col, row);
             if (col === 2) out += pointHTML(row);
           });
-          return '<div class="hrow' + (row === "answer" ? " answer-row" : "") + '">' + out + "</div>";
+          var moving = row === "b" && currentStep() && currentStep().kind === "align";
+        var shift = moving ? ' style="transform:translateX(calc(var(--hcell-width) * ' + session.alignOffset + '));"' : "";
+        return '<div class="hrow' + (row === "answer" ? " answer-row" : "") + (moving ? " align-moving" : "") + '"' + shift + '>' + out + "</div>";
         }
         wrap.innerHTML =
           rowHTML("carry") + rowHTML("a") + rowHTML("b") + rowHTML("answer");
+      }
+
+      function moveAlignment(direction) {
+        if (!session || session.busy || currentStep().kind !== "align") return;
+        session.alignOffset = Math.max(-2, Math.min(2, session.alignOffset + direction));
+        renderHissan();
+        document.getElementById("align-left").disabled = session.alignOffset <= -2;
+        document.getElementById("align-right").disabled = session.alignOffset >= 2;
+      }
+
+      function confirmAlignment() {
+        if (!session || session.busy) return;
+        var st = currentStep();
+        if (!st || st.kind !== "align") return;
+        if (session.alignOffset !== 0) {
+          markStepMistake();
+          playSound("softFail");
+          showFeedback("bad", "もう少し！", "上と下の 小数点が たてに そろうように、下の数を 動かしてみよう。");
+          return;
+        }
+        playSound("correct");
+        session.busy = true;
+        session.stepIndex += 1;
+        renderHissan();
+        showFeedback("good", "位が そろった！", "小数点が たてに そろったね。同じ位どうしを 計算できるよ。");
+        session.timer = setTimeout(function () {
+          session.busy = false;
+          renderStep();
+        }, 700);
       }
 
       /* ---------- 小数点決めの描画 ---------- */
@@ -1913,6 +2011,9 @@
         pressKey(btn.getAttribute("data-key"));
       });
       document.getElementById("btn-check").addEventListener("click", checkAnswer);
+      document.getElementById("align-left").addEventListener("click", function () { moveAlignment(-1); });
+      document.getElementById("align-right").addEventListener("click", function () { moveAlignment(1); });
+      document.getElementById("align-confirm").addEventListener("click", confirmAlignment);
       document.getElementById("btn-next").addEventListener("click", nextQuestion);
       document.getElementById("btn-quit").addEventListener("click", function () {
         clearTimer();

@@ -893,7 +893,7 @@
           </button>
           <button class="menu-btn" id="btn-records">
             れんしゅうの きろく
-            <small>種類ごとに、といた 問題数と 正解数が 見られます。</small>
+            <small>種類ごとに、といた 問題数と ノーミス数が 見られます。</small>
           </button>
         </div>
 
@@ -1234,14 +1234,14 @@
       }
       function problemFromRecord(m) {
         if (typeof m.a === "number" && typeof m.b === "number") {
-          return { type: m.type, expr: m.expr, answer: m.answer, a: m.a, b: m.b };
+          return { type: m.type, expr: m.expr, answer: m.answer, a: m.a, b: m.b, skillKinds: m.skillKinds || [] };
         }
         var tokens = String(m.expr).split(" ");
         if (tokens.length < 3) return null;
         var a = parseScaledStr(tokens[0]);
         var b = (m.type === "mul" || m.type === "div") ? parseInt(tokens[2], 10) : parseScaledStr(tokens[2]);
         if (isNaN(b)) return null;
-        return { type: m.type, expr: m.expr, answer: m.answer, a: a, b: b };
+        return { type: m.type, expr: m.expr, answer: m.answer, a: a, b: b, skillKinds: m.skillKinds || [] };
       }
 
       /* ================= ステップ列の生成 =================
@@ -1295,7 +1295,7 @@
         }
         p.meta = { K: K, kMin: kMin, pointIndex: pointIndex };
         // 筆算で考えたあと、式だけを見て自分の力で答えを確かめる
-        steps.push({ kind: "independent" });
+        steps.push({ kind: "independent", expect: p.answer });
         return steps;
       }
 
@@ -1405,7 +1405,7 @@
           card.innerHTML =
             '<h3><span class="colorbar" style="background:' + colors[key] + '"></span>' + t.label + '</h3>' +
             '<div class="row"><span>といた 問題数</span><b>' + s.total + ' もん</b></div>' +
-            '<div class="row"><span>正解数</span><b>' + s.correct + ' もん</b></div>' +
+            '<div class="row"><span>ノーミス数</span><b>' + s.correct + ' もん</b></div>' +
             '<div class="row"><span>とっくん待ち</span><b>' + pendingCount + ' もん</b></div>';
           grid.appendChild(card);
         });
@@ -1505,12 +1505,17 @@
         session.stepIndex = 0;
         session.stepInput = "";
         session.stepAttempts = 0;
+        session.alignAttempts = 0;
         session.hadMistake = false;
         session.busy = false;
         session.pointShown = false;
         session.chosenGap = -1;
         session.alignOffset = pick([-1, 1]);
-        document.getElementById("quiz-navi").innerHTML = naviHTML("hint", TYPES[p.type].hint);
+        var skillNames = { align: "小数点をそろえる", digit: "位ごとの計算", independent: "式だけで答える", intcalc: "整数の計算", count: "小数のけた数", point: "小数点の位置" };
+        var skillNote = session.mode === "tokkun" && Array.isArray(p.skillKinds) && p.skillKinds.length
+          ? "前回つまずいたところ：" + p.skillKinds.map(function (key) { return skillNames[key] || key; }).join("・") + "。ここを意識して取り組もう。"
+          : TYPES[p.type].hint;
+        document.getElementById("quiz-navi").innerHTML = naviHTML("hint", skillNote);
         document.getElementById("progress-label").textContent =
           (session.mode === "tokkun" ? "とっくん " : "") +
           (session.index + 1) + " / " + session.problems.length + " もん";
@@ -1785,7 +1790,7 @@
         var st = currentStep();
         if (!st || st.kind !== "align") return;
         if (session.alignOffset !== 0) {
-          markStepMistake();
+          markStepMistake("align");
           session.alignAttempts = (session.alignAttempts || 0) + 1;
           playSound("softFail");
           var alignHint = session.alignAttempts === 1
@@ -1842,7 +1847,7 @@
           renderPointPicker(st);
           completeProblem();
         } else {
-          markStepMistake();
+          markStepMistake("point");
           playSound("softFail");
           showFeedback("bad", "おしい！",
             "小数点以下の 数が " + st.places + " つに なる 位置だよ。右から " +
@@ -1902,17 +1907,19 @@
       }
 
       /* ---------- ステップの判定 ---------- */
-      function markStepMistake() {
-        if (session.hadMistake) return;
+      function markStepMistake(skill) {
         session.hadMistake = true;
         if (session.mode === "practice") {
           var p = currentProblem();
           var mistakes = loadMistakes();
-          var exists = mistakes.some(function (m) { return m.type === p.type && m.expr === p.expr; });
-          if (!exists) {
-            mistakes.push({ type: p.type, expr: p.expr, answer: p.answer, a: p.a, b: p.b });
-            saveJSON(LS_MISTAKES, mistakes);
+          var record = mistakes.find(function (m) { return m.type === p.type && m.expr === p.expr; });
+          if (!record) {
+            record = { type: p.type, expr: p.expr, answer: p.answer, a: p.a, b: p.b, skillKinds: [] };
+            mistakes.push(record);
           }
+          if (!Array.isArray(record.skillKinds)) record.skillKinds = [];
+          if (skill && record.skillKinds.indexOf(skill) < 0) record.skillKinds.push(skill);
+          saveJSON(LS_MISTAKES, mistakes);
         }
       }
 
@@ -1994,7 +2001,7 @@
         }
         var ok = (val === st.expect);
         if (!ok) {
-          markStepMistake();
+          markStepMistake(st.kind);
           session.stepAttempts = (session.stepAttempts || 0) + 1;
           playSound("softFail");
           session.stepInput = "";
@@ -2081,9 +2088,9 @@
         if (session.mode === "practice") {
           var n = session.problems.length;
           var c = session.correctCount;
-          title.textContent = n + "もん中 " + c + "もん せいかい！";
-          if (c === n) msg.textContent = "全問 正解！ すごいね。この調子で いろいろな 種類にも チャレンジしよう。";
-          else if (c >= n * 0.7) msg.textContent = "よく がんばりました。まちがえた 問題は「とっくん」で もう一度 やってみよう。";
+          title.textContent = "ノーミス " + c + " ／ " + n + " もん";
+          if (c === n) msg.textContent = "全問ノーミス！ すごいね。この調子で いろいろな 種類にも チャレンジしよう。";
+          else if (c >= n * 0.7) msg.textContent = "よく がんばりました。まちがいを直して最後までできた問題も、力になっています。記録した問題は「とっくん」で確かめよう。";
           else msg.textContent = "おつかれさま。まちがえた 問題は「とっくん」に 入っているよ。あわてず 1問ずつ 直していこう。";
           againBtn.textContent = "もう一度 れんしゅう";
         } else {

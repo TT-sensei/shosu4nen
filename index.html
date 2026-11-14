@@ -1234,14 +1234,14 @@
       }
       function problemFromRecord(m) {
         if (typeof m.a === "number" && typeof m.b === "number") {
-          return { type: m.type, expr: m.expr, answer: m.answer, a: m.a, b: m.b };
+          return { type: m.type, expr: m.expr, answer: m.answer, a: m.a, b: m.b, skillKinds: m.skillKinds || [] };
         }
         var tokens = String(m.expr).split(" ");
         if (tokens.length < 3) return null;
         var a = parseScaledStr(tokens[0]);
         var b = (m.type === "mul" || m.type === "div") ? parseInt(tokens[2], 10) : parseScaledStr(tokens[2]);
         if (isNaN(b)) return null;
-        return { type: m.type, expr: m.expr, answer: m.answer, a: a, b: b };
+        return { type: m.type, expr: m.expr, answer: m.answer, a: a, b: b, skillKinds: m.skillKinds || [] };
       }
 
       /* ================= ステップ列の生成 =================
@@ -1511,7 +1511,11 @@
         session.pointShown = false;
         session.chosenGap = -1;
         session.alignOffset = pick([-1, 1]);
-        document.getElementById("quiz-navi").innerHTML = naviHTML("hint", TYPES[p.type].hint);
+        var skillNames = { align: "小数点をそろえる", digit: "位ごとの計算", independent: "式だけで答える", intcalc: "整数の計算", count: "小数のけた数", point: "小数点の位置" };
+        var skillNote = session.mode === "tokkun" && Array.isArray(p.skillKinds) && p.skillKinds.length
+          ? "前回つまずいたところ：" + p.skillKinds.map(function (key) { return skillNames[key] || key; }).join("・") + "。ここを意識して取り組もう。"
+          : TYPES[p.type].hint;
+        document.getElementById("quiz-navi").innerHTML = naviHTML("hint", skillNote);
         document.getElementById("progress-label").textContent =
           (session.mode === "tokkun" ? "とっくん " : "") +
           (session.index + 1) + " / " + session.problems.length + " もん";

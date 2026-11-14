@@ -1539,6 +1539,8 @@
           label.textContent = "ステップ 1 ／ " + p.steps.length;
           prompt.textContent = "下の数を 左右に 動かして、小数点を たてに そろえよう。";
           alignControls.classList.remove("hidden");
+          document.getElementById("align-left").disabled = session.alignOffset <= -2;
+          document.getElementById("align-right").disabled = session.alignOffset >= 2;
           box.classList.add("hidden");
           keypad.classList.add("hidden");
           picker.classList.add("hidden");

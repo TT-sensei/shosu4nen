@@ -893,7 +893,7 @@
           </button>
           <button class="menu-btn" id="btn-records">
             れんしゅうの きろく
-            <small>種類ごとに、といた 問題数と 正解数が 見られます。</small>
+            <small>種類ごとに、といた 問題数と ノーミス数が 見られます。</small>
           </button>
         </div>
 
@@ -1295,7 +1295,7 @@
         }
         p.meta = { K: K, kMin: kMin, pointIndex: pointIndex };
         // 筆算で考えたあと、式だけを見て自分の力で答えを確かめる
-        steps.push({ kind: "independent" });
+        steps.push({ kind: "independent", expect: p.answer });
         return steps;
       }
 
@@ -1405,7 +1405,7 @@
           card.innerHTML =
             '<h3><span class="colorbar" style="background:' + colors[key] + '"></span>' + t.label + '</h3>' +
             '<div class="row"><span>といた 問題数</span><b>' + s.total + ' もん</b></div>' +
-            '<div class="row"><span>正解数</span><b>' + s.correct + ' もん</b></div>' +
+            '<div class="row"><span>ノーミス数</span><b>' + s.correct + ' もん</b></div>' +
             '<div class="row"><span>とっくん待ち</span><b>' + pendingCount + ' もん</b></div>';
           grid.appendChild(card);
         });
@@ -1505,6 +1505,7 @@
         session.stepIndex = 0;
         session.stepInput = "";
         session.stepAttempts = 0;
+        session.alignAttempts = 0;
         session.hadMistake = false;
         session.busy = false;
         session.pointShown = false;
@@ -1785,7 +1786,7 @@
         var st = currentStep();
         if (!st || st.kind !== "align") return;
         if (session.alignOffset !== 0) {
-          markStepMistake();
+          markStepMistake("align");
           session.alignAttempts = (session.alignAttempts || 0) + 1;
           playSound("softFail");
           var alignHint = session.alignAttempts === 1
@@ -1842,7 +1843,7 @@
           renderPointPicker(st);
           completeProblem();
         } else {
-          markStepMistake();
+          markStepMistake("point");
           playSound("softFail");
           showFeedback("bad", "おしい！",
             "小数点以下の 数が " + st.places + " つに なる 位置だよ。右から " +
@@ -1902,17 +1903,20 @@
       }
 
       /* ---------- ステップの判定 ---------- */
-      function markStepMistake() {
+      function markStepMistake(skill) {
         if (session.hadMistake) return;
         session.hadMistake = true;
         if (session.mode === "practice") {
           var p = currentProblem();
           var mistakes = loadMistakes();
-          var exists = mistakes.some(function (m) { return m.type === p.type && m.expr === p.expr; });
-          if (!exists) {
-            mistakes.push({ type: p.type, expr: p.expr, answer: p.answer, a: p.a, b: p.b });
-            saveJSON(LS_MISTAKES, mistakes);
+          var record = mistakes.find(function (m) { return m.type === p.type && m.expr === p.expr; });
+          if (!record) {
+            record = { type: p.type, expr: p.expr, answer: p.answer, a: p.a, b: p.b, skillKinds: [] };
+            mistakes.push(record);
           }
+          if (!Array.isArray(record.skillKinds)) record.skillKinds = [];
+          if (skill && record.skillKinds.indexOf(skill) < 0) record.skillKinds.push(skill);
+          saveJSON(LS_MISTAKES, mistakes);
         }
       }
 
@@ -1994,7 +1998,7 @@
         }
         var ok = (val === st.expect);
         if (!ok) {
-          markStepMistake();
+          markStepMistake(st.kind);
           session.stepAttempts = (session.stepAttempts || 0) + 1;
           playSound("softFail");
           session.stepInput = "";

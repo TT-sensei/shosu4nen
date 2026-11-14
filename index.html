@@ -1162,8 +1162,8 @@
           b = randInt(11, 299);
           if (b % 10 === 0) b += randInt(1, 9);
         } else if (style === 5) {
-          a = randInt(2, 9) * 100;
-          b = randInt(1, 99) * 10;
+          a = randInt(5, 9) * 100;
+          b = randInt(1, 49) * 10;
         } else {
           // 小数第1位と第2位の混在。空位に 0 を置く意味も確認できる
           a = randInt(1, 99) * 10;
@@ -1786,8 +1786,14 @@
         if (!st || st.kind !== "align") return;
         if (session.alignOffset !== 0) {
           markStepMistake();
+          session.alignAttempts = (session.alignAttempts || 0) + 1;
           playSound("softFail");
-          showFeedback("bad", "もう少し！", "上と下の 小数点が たてに そろうように、下の数を 動かしてみよう。");
+          var alignHint = session.alignAttempts === 1
+            ? "小数点の位置を見比べよう。小数点が同じ縦の線にくるように動かすよ。"
+            : (session.alignOffset > 0
+              ? "下の数が右にずれているよ。左へ動かして、小数点をそろえよう。"
+              : "下の数が左にずれているよ。右へ動かして、小数点をそろえよう。");
+          showFeedback("bad", "もう少し！", alignHint);
           return;
         }
         playSound("correct");

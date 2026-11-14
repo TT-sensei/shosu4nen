@@ -393,6 +393,22 @@
       }
       .align-controls button:disabled { opacity: .4; cursor: default; }
       .hrow.align-moving { transition: transform .16s ease; }
+      .place-guide-row { display: flex; align-items: center; margin-bottom: 2px; }
+      .place-guide-row .guide-cell {
+        width: var(--hcell-width); min-height: 30px; display: flex; align-items: center;
+        justify-content: center; color: var(--primary-dark); font-size: 11px;
+        font-weight: 800; white-space: nowrap; border-bottom: 2px solid var(--primary-soft);
+      }
+      .place-guide-row .guide-sign { width: 34px; }
+      .place-guide-row .guide-point {
+        width: 18px; min-height: 30px; display: flex; align-items: center;
+        justify-content: center; color: var(--primary-dark); font-size: 10px;
+        font-weight: 800; writing-mode: vertical-rl; white-space: nowrap;
+      }
+      @media (max-width: 480px) {
+        .place-guide-row .guide-cell { font-size: 10px; }
+        .place-guide-row .guide-point { font-size: 9px; }
+      }
       @media (max-width: 480px) {
         :root { --hcell-width: 40px; }
         .align-controls { gap: 7px; }
@@ -1126,7 +1142,7 @@
       /* ================= 問題生成 ================= */
       // たし算・ひき算用の小数ペア（0.01単位の整数で返す）
       function decimalPair() {
-        var style = pick([1, 1, 2, 2, 3]); // 1:第1位まで 2:第2位まで 3:まざった形
+        var style = pick([1, 1, 2, 2, 3, 4, 4, 5, 6]);
         var a, b;
         if (style === 1) {
           a = randInt(1, 99) * 10;
@@ -1136,9 +1152,22 @@
           b = randInt(11, 999);
           if (a % 10 === 0) a += randInt(1, 9);
           if (b % 10 === 0) b += randInt(1, 9);
-        } else {
+        } else if (style === 3) {
           a = randInt(1, 99) * 10;
           b = randInt(11, 999);
+          if (b % 10 === 0) b += randInt(1, 9);
+        } else if (style === 4) {
+          // 整数と小数第2位まで：5 − 0.28 のような連続したくり下がりも練習
+          a = randInt(3, 9) * 100;
+          b = randInt(11, 299);
+          if (b % 10 === 0) b += randInt(1, 9);
+        } else if (style === 5) {
+          a = randInt(5, 9) * 100;
+          b = randInt(1, 49) * 10;
+        } else {
+          // 小数第1位と第2位の混在。空位に 0 を置く意味も確認できる
+          a = randInt(1, 99) * 10;
+          b = randInt(11, 199);
           if (b % 10 === 0) b += randInt(1, 9);
         }
         return [a, b];
@@ -1265,6 +1294,8 @@
           }
         }
         p.meta = { K: K, kMin: kMin, pointIndex: pointIndex };
+        // 筆算で考えたあと、式だけを見て自分の力で答えを確かめる
+        steps.push({ kind: "independent" });
         return steps;
       }
 
@@ -1473,6 +1504,7 @@
         if (!p.steps) p.steps = buildSteps(p);
         session.stepIndex = 0;
         session.stepInput = "";
+        session.stepAttempts = 0;
         session.hadMistake = false;
         session.busy = false;
         session.pointShown = false;
@@ -1509,7 +1541,8 @@
       function renderStep() {
         var p = currentProblem();
         var st = currentStep();
-        var isHissan = (p.type === "add" || p.type === "sub");
+        session.stepAttempts = 0;
+        var isHissan = (p.type === "add" || p.type === "sub") && (!st || st.kind !== "independent");
         document.getElementById("quiz-layout").classList.toggle(
           "point-mode", !!st && (st.kind === "point" || st.kind === "hissan-point")
         );
@@ -1546,6 +1579,17 @@
           picker.classList.add("hidden");
           checkBtn.classList.add("hidden");
           renderHissan();
+          return;
+        }
+
+        if (st.kind === "independent") {
+          label.textContent = "さいごの チャレンジ";
+          prompt.textContent = "筆算を見ずに、式を見て答えを入力しよう。小数点の位置にも気をつけてね。";
+          box.classList.remove("hidden");
+          keypad.classList.remove("hidden");
+          picker.classList.add("hidden");
+          checkBtn.classList.remove("hidden");
+          renderInput();
           return;
         }
 
@@ -1667,7 +1711,7 @@
             var content = String(da);
             var mini = "";
             if (p.type === "sub" && st) {
-              if (st.borrowIn === 1 && stIdx > 0 && (stIdx - 1) < session.stepIndex) {
+              if (st.borrowIn === 1 && da > 0 && stIdx > 0 && (stIdx - 1) < session.stepIndex) {
                 mini = '<span class="mini-above">' + (da - 1) + "</span>";
                 content = '<span class="struck">' + da + "</span>";
               }
@@ -1701,6 +1745,15 @@
           var cls = "hpoint" + (rowKind === "carry" ? " small" : "");
           return '<div class="' + cls + '">' + (show ? "." : "") + "</div>";
         }
+        function guideHTML() {
+          var out = '<div class="place-guide-row"><div class="guide-sign"></div>';
+          cols.forEach(function (col) {
+            var names = { 0: "0.01の位", 1: "0.1の位", 2: "1の位", 3: "10の位", 4: "100の位" };
+            out += '<div class="guide-cell">' + (names[col] || "") + '</div>';
+            if (col === 2) out += '<div class="guide-point">小数点</div>';
+          });
+          return out + '</div>';
+        }
         function rowHTML(row) {
           var out = "";
           if (row === "a") out += '<div class="hcell sign"></div>';
@@ -1715,6 +1768,7 @@
         return '<div class="hrow' + (row === "answer" ? " answer-row" : "") + (moving ? " align-moving" : "") + '"' + shift + '>' + out + "</div>";
         }
         wrap.innerHTML =
+          ((currentStep() && currentStep().kind === "align") ? guideHTML() : "") +
           rowHTML("carry") + rowHTML("a") + rowHTML("b") + rowHTML("answer");
       }
 
@@ -1732,8 +1786,14 @@
         if (!st || st.kind !== "align") return;
         if (session.alignOffset !== 0) {
           markStepMistake();
+          session.alignAttempts = (session.alignAttempts || 0) + 1;
           playSound("softFail");
-          showFeedback("bad", "もう少し！", "上と下の 小数点が たてに そろうように、下の数を 動かしてみよう。");
+          var alignHint = session.alignAttempts === 1
+            ? "小数点の位置を見比べよう。小数点が同じ縦の線にくるように動かすよ。"
+            : (session.alignOffset > 0
+              ? "下の数が右にずれているよ。左へ動かして、小数点をそろえよう。"
+              : "下の数が左にずれているよ。右へ動かして、小数点をそろえよう。");
+          showFeedback("bad", "もう少し！", alignHint);
           return;
         }
         playSound("correct");
@@ -1827,6 +1887,17 @@
             else session.stepInput += key;
           }
           renderInput();
+        } else if (st.kind === "independent") {
+          if (key === "back") session.stepInput = session.stepInput.slice(0, -1);
+          else if (key === ".") {
+            if (session.stepInput && session.stepInput.indexOf(".") < 0) session.stepInput += ".";
+          } else {
+            var decimalPart = session.stepInput.split(".")[1] || "";
+            if (decimalPart.length >= 2 || session.stepInput.length >= 6) return;
+            if (session.stepInput === "0") session.stepInput = key;
+            else session.stepInput += key;
+          }
+          renderInput();
         }
       }
 
@@ -1862,6 +1933,7 @@
         if (st.kind === "count") {
           return "せいかい！小数点以下の 数は " + st.expect + " つだね。";
         }
+        if (st.kind === "independent") return "せいかい！筆算で考えたことを、式だけでも確かめられたね。";
         return "せいかい！";
       }
 
@@ -1886,7 +1958,26 @@
         if (st.kind === "count") {
           return "おしい。" + fmt(p.a) + " の 小数点の 右側にある 数字の かずを、もう一度 数えてみよう。";
         }
+        if (st.kind === "independent") return "筆算の答えと照らし合わせて、小数点の位置を確かめよう。答えの数字も位ごとに見直してみよう。";
         return "おしい。もう一度 やってみよう。";
+      }
+
+      function parseScaledInput(value) {
+        var str = String(value);
+        if (!/^\d+(\.\d{1,2})?$/.test(str)) return null;
+        var parts = str.split(".");
+        var whole = parseInt(parts[0], 10);
+        var frac = parts[1] ? parseInt((parts[1] + "00").slice(0, 2), 10) : 0;
+        return whole * 100 + frac;
+      }
+
+      function firstStepHint(st, p) {
+        if (st.kind === "independent") return "小数点の位置と、1の位・0.1の位・0.01の位を確かめてみよう。";
+        if (st.kind === "digit" && p.type === "add") return placeName(st.col) + "の数字をたしかめて、くり上がりがあるか考えよう。";
+        if (st.kind === "digit" && p.type === "sub" && st.borrowed) return "この位だけではひけないね。左の位から1くり下げることを考えよう。";
+        if (st.kind === "digit") return placeName(st.col) + "どうしを計算できているか、もう一度見直そう。";
+        if (st.kind === "count") return "小数点の右側にある数字を、左から順に数えよう。";
+        return "小数点をいったん考えずに、整数の計算として見直そう。";
       }
 
       function checkAnswer() {
@@ -1894,18 +1985,24 @@
         var p = currentProblem();
         var st = currentStep();
         if (!st) return;
-        if (st.kind !== "digit" && st.kind !== "intcalc" && st.kind !== "count") return;
+        if (st.kind !== "digit" && st.kind !== "intcalc" && st.kind !== "count" && st.kind !== "independent") return;
         if (session.stepInput === "") return;
-        var val = parseInt(session.stepInput, 10);
+        var val = st.kind === "independent" ? parseScaledInput(session.stepInput) : parseInt(session.stepInput, 10);
+        if (st.kind === "independent" && val === null) {
+          showFeedback("bad", "小数点をたしかめよう", "小数点は1つ、数字は小数点以下2けたまで入力できるよ。");
+          return;
+        }
         var ok = (val === st.expect);
         if (!ok) {
           markStepMistake();
+          session.stepAttempts = (session.stepAttempts || 0) + 1;
           playSound("softFail");
           session.stepInput = "";
           if (st.kind === "digit") renderHissan(); else renderInput();
           var box = document.getElementById("answer-box");
           if (st.kind !== "digit") box.className = "answer-box bad";
-          showFeedback("bad", "おしい！", stepWrongFeedback(st, p));
+          var hint = session.stepAttempts === 1 ? firstStepHint(st, p) : stepWrongFeedback(st, p);
+          showFeedback("bad", "おしい！", hint);
           return;
         }
         // 正解：ステップを進める
